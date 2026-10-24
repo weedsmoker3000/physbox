@@ -13,6 +13,8 @@ text-xl{line-height:1.75rem}.text-xl{font-size:1.25rem}.text-xs{font-size:.75rem
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <!-- Cannon.js -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/cannon.js/0.6.2/cannon.min.js"></script>
+    <!-- Supabase (workshop) -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
     <style>
     /* ==========================================
        STRICT CLASSIC STEAM UI THEME OVERRIDES
@@ -237,9 +239,105 @@ text-xl{line-height:1.75rem}.text-xl{font-size:1.25rem}.text-xs{font-size:.75rem
     #start-menu button.start-btn:not([style*="background"]):not(.btn-raw) { display: block; width: 100%; text-align: left; padding: 10px 12px !important; margin-top: 8px; }
     .start-btn .st-title { color: var(--steam-yellow); font-weight: bold; font-size: 13px; }
     .start-btn .st-desc { color: var(--steam-text-dim); margin-top: 3px; font-size: 11px; }
+
+    /* ---- Logic panel ---- */
+    #left-col { display: flex; flex-direction: column; pointer-events: none; min-height: 0; }
+    #controls-panel { min-height: 0; overflow-y: auto; }
+    #logic-panel { position: relative; display: flex; flex-direction: column; width: 384px; height: 270px; margin: 12px 12px 0 12px; flex: none; }
+    #logic-panel.expanded { width: calc(100vw - 20rem - 3rem); height: auto; flex: 1; margin-bottom: 12px; }
+    #logic-canvas { flex: 1; position: relative; overflow: hidden; min-height: 0; border-top: 1px solid #1a2018; background-color: var(--steam-dark);
+        background-image: radial-gradient(circle at center, rgba(168,183,154,.38) 1px, transparent 1.7px), radial-gradient(circle at center, rgba(168,183,154,.7) 1.5px, transparent 2.2px);
+        background-size: 20px 20px, 100px 100px; }
+    #logic-world { position: absolute; left: 0; top: 0; width: 0; height: 0; }
+    #logic-box { display: none; position: absolute; z-index: 4; pointer-events: none; border: 1px dashed var(--steam-yellow); background: rgba(243,229,171,.08); }
+    .lg-node.sel { outline: 2px solid #fff; outline-offset: 1px; }
+    #logic-wires, #logic-nodes { position: absolute; left: 0; top: 0; width: 2px; height: 2px; pointer-events: none; overflow: visible; }
+    button.lg-expand:not([style*="background"]):not(.btn-raw) { position: absolute; left: 6px; bottom: 6px; z-index: 5; padding: 2px 6px !important; }
+    .lg-node { position: absolute; width: 136px; pointer-events: auto; font-size: 10px; background: var(--steam-panel); border: 1px solid #1a2018; border-top-color: var(--steam-light); border-left-color: var(--steam-light); }
+    .lg-node.on { border-color: #22c55e; }
+    .lg-head { display: flex; justify-content: space-between; align-items: center; padding: 3px 4px; cursor: move; font-weight: bold; text-transform: uppercase; letter-spacing: .04em; font-size: 9px; color: #fff; background: #5a6850; }
+    .lg-node.gate .lg-head { background: #7a6a35; } .lg-node.out .lg-head { background: #6b4a3a; }
+    .lg-x { display: flex; align-items: center; justify-content: center; width: 18px; height: 16px; margin: -2px -2px -2px 6px; background: #b3342a; color: #fff; font-size: 16px; line-height: 1; font-weight: bold; cursor: pointer;
+        border-top: 1px solid #e0685c; border-left: 1px solid #e0685c; border-right: 1px solid #6d1c16; border-bottom: 1px solid #6d1c16; }
+    .lg-x:hover { background: #d4463a; }
+    .lg-x:active { border-top-color: #6d1c16; border-left-color: #6d1c16; border-right-color: #e0685c; border-bottom-color: #e0685c; }
+    .lg-body { padding: 4px; display: flex; flex-direction: column; gap: 3px; min-height: 22px; }
+    .lg-row { display: flex; justify-content: space-between; align-items: center; }
+    .lg-port { position: absolute; width: 12px; height: 12px; margin-top: -6px; box-sizing: border-box; border-radius: 50% !important; background: var(--steam-dark); border: 2px solid var(--steam-yellow); opacity: 0; cursor: crosshair; transition: opacity .1s; }
+    .lg-port.in { left: -7px; } .lg-port.out { right: -7px; }
+    .lg-node:hover .lg-port, #logic-canvas.wiring .lg-port { opacity: 1; }
+    .lg-port:hover { background: var(--steam-yellow); }
+    .lg-wire { fill: none; stroke: #8a9a7a; stroke-width: 2; pointer-events: none; }
+    .lg-hit { fill: none; stroke: transparent; stroke-width: 16; pointer-events: stroke; cursor: pointer; }
+    .lg-hit:hover + .lg-wire { stroke: #fff; stroke-width: 3; }
+    .lg-wire.on { stroke: #22c55e; } .lg-wire.tmp { stroke: var(--steam-yellow); stroke-dasharray: 4 3; pointer-events: none; }
+
+    /* ---- Steam dropdowns (replace native select popups) ---- */
+    .ss-wrap { position: relative; display: block; }
+    .ss-wrap > select { display: none !important; }
+    button.ss-btn { display: flex; align-items: center; justify-content: space-between; width: 100%; text-align: left; padding: 2px 4px; font-size: 11px; cursor: pointer; white-space: nowrap; overflow: hidden;
+        background: var(--steam-input-bg); color: var(--steam-text);
+        border-top: 1px solid #1a2018; border-left: 1px solid #1a2018; border-bottom: 1px solid #5a6850; border-right: 1px solid #5a6850; }
+    button.ss-btn::after { content: ""; flex: none; margin-left: 6px; border-left: 3px solid transparent; border-right: 3px solid transparent; border-top: 4px solid var(--steam-text); }
+    button.ss-btn:hover { background: #36402f; }
+    button.ss-btn:hover::after { border-top-color: var(--steam-yellow); }
+    #ss-pop { position: fixed; z-index: 70; max-height: 320px; overflow-y: auto; padding: 2px 0; font-size: 11px; white-space: nowrap; }
+    .ss-grp { padding: 4px 8px 2px; font-size: 10px; font-weight: bold; color: var(--steam-yellow); text-transform: uppercase; letter-spacing: .05em; }
+    .ss-opt { padding: 3px 14px; cursor: pointer; color: var(--steam-text); }
+    .ss-opt.sel { color: var(--steam-yellow); font-weight: bold; }
+    .ic { display: inline-block; width: 1em; height: 1em; vertical-align: -0.125em; flex: none; }
+
+    /* ---- Workshop ---- */
+    #workshop { display: none; position: fixed; inset: 0; z-index: 80; flex-direction: column; background: var(--steam-bg); }
+    #workshop.open { display: flex; }
+    #wk-bar { display: flex; align-items: center; gap: 10px; padding: 6px 12px; background: var(--steam-header); border-bottom: 1px solid var(--steam-dark); font-size: 12px; }
+    #wk-title { font-weight: 900; letter-spacing: .05em; font-size: 15px; margin-right: auto; }
+    #wk-scroll { flex: 1; overflow-y: auto; padding: 16px 0 40px; }
+    #wk-list { width: min(940px, 94vw); margin: 0 auto; display: flex; flex-direction: column; gap: 14px; }
+    .wk-msg { text-align: center; padding: 40px 0; color: var(--steam-text-dim); }
+    .wk-card { display: grid; grid-template-columns: 11fr 9fr; gap: 14px; padding: 12px; background: var(--steam-panel); border: 1px solid var(--steam-dark); border-top-color: var(--steam-light); border-left-color: var(--steam-light); }
+    .wk-preview { aspect-ratio: 4 / 3; background: var(--steam-dark); border: 1px solid #1a2018; border-bottom-color: #5a6850; border-right-color: #5a6850; }
+    .wk-canvas { width: 100%; height: 100%; display: block; cursor: grab; touch-action: none; }
+    .wk-canvas:active { cursor: grabbing; }
+    .wk-name { margin-top: 8px; font-size: 16px; font-weight: bold; color: #fff; }
+    .wk-by { font-size: 12px; color: var(--steam-text-dim); margin-bottom: 4px; }
+    .wk-right { display: flex; flex-direction: column; min-height: 0; }
+    .wk-dh { font-size: 11px; font-weight: bold; text-transform: uppercase; letter-spacing: .06em; color: var(--steam-yellow); margin-bottom: 6px; }
+    .wk-desc { flex: 1; white-space: pre-wrap; word-break: break-word; font-size: 12px; max-height: 260px; overflow-y: auto; }
+    .wk-del { align-self: flex-end; margin-top: 8px; }
+    .wk-rate { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--steam-text-dim); }
+    .wk-starrow { position: relative; width: 100px; height: 20px; flex: none; }
+    .wk-bg, .wk-fg { position: absolute; left: 0; top: 0; height: 20px; display: flex; white-space: nowrap; overflow: hidden; pointer-events: none; }
+    .wk-bg { color: #4a5641; width: 100px; } .wk-fg { color: var(--steam-yellow); }
+    .wk-bg svg, .wk-fg svg, .wk-hit span svg { width: 20px; height: 20px; flex: none; }
+    .wk-hit { position: absolute; inset: 0; display: flex; cursor: pointer; }
+    .wk-hit span { width: 20px; height: 20px; }
+    #wk-publish { display: none; position: absolute; inset: 0; z-index: 5; background: rgba(20,24,18,.8); align-items: center; justify-content: center; }
+    #wk-publish.open { display: flex; }
+    .wk-form { width: 420px; max-width: 94vw; padding: 14px; display: flex; flex-direction: column; gap: 8px; background: var(--steam-panel); border: 1px solid var(--steam-dark); border-top-color: var(--steam-light); border-left-color: var(--steam-light); }
+    .wk-form textarea { height: 130px; resize: vertical; }
 </style>
 </head>
 <body class="flex flex-col h-screen w-screen overflow-hidden select-none">
+
+    <!-- Workshop -->
+    <div id="workshop">
+        <div id="wk-bar">
+            <span id="wk-title"><i class="fa-solid fa-hammer"></i> phys<span style="color:#fff; font-weight:300;">Box</span> Workshop</span>
+            <span id="wk-user"></span>
+            <button onclick="wkPublish()"><i class="fa-solid fa-plus mr-1"></i>Publish current build</button>
+            <div class="lg-x" style="width:26px;height:22px;margin:0 0 0 6px;font-size:18px" title="Close" onclick="closeWorkshop()">&times;</div>
+        </div>
+        <div id="wk-scroll"><div id="wk-list"></div></div>
+        <div id="wk-publish">
+            <div class="wk-form">
+                <div class="steam-text-gold font-bold uppercase tracking-wider text-[11px]">Publish current build</div>
+                <input id="wk-name" type="text" maxlength="60" placeholder="Build name" class="blender-input w-full" />
+                <textarea id="wk-descr" maxlength="1000" placeholder="Description" class="blender-input w-full"></textarea>
+                <div class="flex justify-end gap-2"><button onclick="wkCancelPublish()">Cancel</button><button id="wk-submit" onclick="wkSubmitPublish()">Publish</button></div>
+            </div>
+        </div>
+    </div>
 
     <!-- Start-up menu -->
     <div id="start-menu">
@@ -304,6 +402,7 @@ text-xl{line-height:1.75rem}.text-xl{font-size:1.25rem}.text-xs{font-size:.75rem
 
             <div class="h-4 w-px mx-1" style="background: var(--steam-light);"></div>
 
+            <button onclick="openWorkshop()" class="flex items-center space-x-1.5" title="Online workshop"><i class="fa-solid fa-hammer"></i><span>Workshop</span></button>
             <button onclick="exportBuild()" class="flex items-center space-x-1.5" title="Export build to .txt">
                 <i class="fa-solid fa-download"></i>
                 <span>Export</span>
@@ -325,6 +424,23 @@ text-xl{line-height:1.75rem}.text-xl{font-size:1.25rem}.text-xs{font-size:.75rem
     <div class="relative flex-1 flex pointer-events-none z-10">
 
         <!-- Left Panel: Controls Cheat Sheet -->
+        <div id="left-col">
+        <aside id="logic-panel" class="steam-panel pointer-events-auto text-xs">
+            <div class="steam-header-bar px-2 py-1 font-bold uppercase tracking-wider text-[10px] flex items-center justify-between">
+                <span><i class="fa-solid fa-diagram-project mr-1"></i>Logic</span>
+                <select data-noempty="1" onchange="addLogicNode(this.value); this.value = ''" class="blender-input" style="width:auto; padding:1px 2px; font-size:10px">
+                    <option value="">+ Add block...</option>
+                    <optgroup label="Inputs"><option value="in_key">Hotkey input</option><option value="in_sensor">Sensor input</option><option value="const_true">TRUE (always on)</option><option value="const_false">FALSE (always off)</option></optgroup>
+                    <optgroup label="Gates"><option value="and">AND</option><option value="or">OR</option><option value="not">NOT</option><option value="xor">XOR</option><option value="nand">NAND</option><option value="nor">NOR</option></optgroup>
+                    <optgroup label="Outputs"><option value="out_joint">Joint hotkey output</option><option value="out_color">Part colour output</option></optgroup>
+                </select>
+            </div>
+            <div id="logic-canvas">
+                <div id="logic-world"><svg id="logic-wires"></svg><div id="logic-nodes"></div></div>
+                <div id="logic-box"></div>
+            </div>
+            <button class="lg-expand" onclick="toggleLogicExpand()" title="Expand / collapse (hides the controls panel)"><i id="logic-expand-icon" class="fa-solid fa-expand"></i></button>
+        </aside>
         <aside id="controls-panel" class="w-64 m-3 p-3 steam-panel pointer-events-auto flex flex-col justify-between text-xs space-y-3">
             <div>
                 <div class="flex items-center justify-between pb-1.5 mb-2 steam-header-bar px-2 py-1 font-bold uppercase tracking-wider text-[10px]">
@@ -359,6 +475,7 @@ text-xl{line-height:1.75rem}.text-xl{font-size:1.25rem}.text-xs{font-size:.75rem
                 </div>
             </div>
         </aside>
+        </div>
 
         <!-- Center Notification Overlay -->
         <div id="transform-hud" class="hidden absolute top-4 left-1/2 -translate-x-1/2 px-4 py-2 steam-panel text-xs font-mono flex items-center space-x-3">
@@ -394,6 +511,25 @@ text-xl{line-height:1.75rem}.text-xl{font-size:1.25rem}.text-xs{font-size:.75rem
     </div>
 
     <!-- Context Add Menu (Shift + A) -->
+    <div id="logic-menu" class="hidden fixed z-50 w-48 steam-panel py-1 text-xs">
+        <div class="px-3 py-1 font-bold text-[10px] steam-header-bar uppercase tracking-wider mb-1 flex items-center justify-between"><span>Add Logic Block</span><span class="text-[9px] steam-text-gold">Shift + A</span></div>
+        <div class="px-3 py-1 text-[10px] font-bold steam-text-gold uppercase tracking-wider">Inputs</div>
+        <button onclick="addLogicFromMenu('in_key')" class="w-full text-left px-4 py-1 menu-item">Hotkey input</button>
+        <button onclick="addLogicFromMenu('in_sensor')" class="w-full text-left px-4 py-1 menu-item">Sensor input</button>
+        <button onclick="addLogicFromMenu('const_true')" class="w-full text-left px-4 py-1 menu-item">TRUE (always on)</button>
+        <button onclick="addLogicFromMenu('const_false')" class="w-full text-left px-4 py-1 menu-item">FALSE (always off)</button>
+        <div class="px-3 py-1 text-[10px] font-bold steam-text-gold uppercase tracking-wider">Gates</div>
+        <button onclick="addLogicFromMenu('and')" class="w-full text-left px-4 py-1 menu-item">AND</button>
+        <button onclick="addLogicFromMenu('or')" class="w-full text-left px-4 py-1 menu-item">OR</button>
+        <button onclick="addLogicFromMenu('not')" class="w-full text-left px-4 py-1 menu-item">NOT</button>
+        <button onclick="addLogicFromMenu('xor')" class="w-full text-left px-4 py-1 menu-item">XOR</button>
+        <button onclick="addLogicFromMenu('nand')" class="w-full text-left px-4 py-1 menu-item">NAND</button>
+        <button onclick="addLogicFromMenu('nor')" class="w-full text-left px-4 py-1 menu-item">NOR</button>
+        <div class="px-3 py-1 text-[10px] font-bold steam-text-gold uppercase tracking-wider">Outputs</div>
+        <button onclick="addLogicFromMenu('out_joint')" class="w-full text-left px-4 py-1 menu-item">Joint hotkey output</button>
+        <button onclick="addLogicFromMenu('out_color')" class="w-full text-left px-4 py-1 menu-item">Part colour output</button>
+    </div>
+
     <div id="add-menu" class="hidden fixed z-50 w-52 steam-panel py-1 text-xs">
         <div class="px-3 py-1 font-bold text-[10px] steam-header-bar uppercase tracking-wider mb-1 flex items-center justify-between">
             <span>Add Menu</span>
@@ -406,7 +542,10 @@ text-xl{line-height:1.75rem}.text-xl{font-size:1.25rem}.text-xs{font-size:.75rem
             <span><i class="fa-solid fa-cube w-4 text-center mr-2"></i> Block</span>
         </button>
         <button onclick="createPrimitive('wedge')" class="w-full text-left px-4 py-1.5 menu-item flex items-center justify-between">
-            <span><i class="fa-solid fa-play -rotate-90 w-4 text-center mr-2"></i> Wedge (Ramp)</span>
+            <span><svg class="ic w-4 mr-2" viewBox="0 0 640 640" fill="currentColor"><path d="m 112.5,163.2 c 19.8,-11.4 44.2,-11.4 64,0 l 351.7,202.70216 c 19.8,11.4 32,33.30711 32,56.20603 0,22.89892 -12.2,43.29181 -32,54.69181 L 352.3,578.5 c -19.8,11.4 -44.2,11.4 -64,0 L 112.5,477 c -19.8,-11.4 -32,-32.6 -32,-55.4 v -203 c 0,-22.9 12.2,-44 32,-55.4 z M 496.1,421.5 352.3,338.4 v 166.1 z"/></svg> Wedge (Ramp)</span>
+        </button>
+        <button onclick="createSensor()" class="w-full text-left px-4 py-1.5 menu-item flex items-center justify-between">
+            <span><svg class="ic w-4 mr-2" viewBox="0 0 640 640" fill="currentColor" style="color:#ef4444"><path d="M0 168C0 132.7 28.7 104 64 104L384 104C419.3 104 448 132.7 448 168L448 488C448 523.3 419.3 552 384 552L64 552C28.7 552 0 523.3 0 488L0 168zM88 168C74.7 168 64 178.7 64 192L64 336C64 349.3 74.7 360 88 360C101.3 360 112 349.3 112 336L112 192C112 178.7 101.3 168 88 168zM184 168C170.7 168 160 178.7 160 192L160 336C160 349.3 170.7 360 184 360C197.3 360 208 349.3 208 336L208 192C208 178.7 197.3 168 184 168zM597.3 172L549.3 204C538.3 211.4 523.4 208.4 516 197.3C508.6 186.2 511.6 171.4 522.7 164L570.7 132C581.7 124.6 596.6 127.6 604 138.7C611.4 149.8 608.4 164.6 597.3 172zM536 296L616 296C629.3 296 640 306.7 640 320C640 333.3 629.3 344 616 344L536 344C522.7 344 512 333.3 512 320C512 306.7 522.7 296 536 296zM549.3 436L597.3 468C608.3 475.4 611.3 490.3 604 501.3C596.7 512.3 581.7 515.3 570.7 508L522.7 476C511.7 468.6 508.7 453.7 516 442.7C523.3 431.7 538.3 428.7 549.3 436z"/></svg> Sensor (no collision)</span>
         </button>
         <button onclick="createPrimitive('sphere')" class="w-full text-left px-4 py-1.5 menu-item flex items-center justify-between">
             <span><i class="fa-solid fa-globe w-4 text-center mr-2"></i> Sphere</span>
@@ -420,16 +559,16 @@ text-xl{line-height:1.75rem}.text-xl{font-size:1.25rem}.text-xs{font-size:.75rem
         <!-- Mechanical Joints Category -->
         <div class="px-3 py-1 text-[10px] font-bold steam-text-gold uppercase tracking-wider">Mechanical Joints</div>
         <button onclick="createJoint('bearing')" class="w-full text-left px-4 py-1.5 menu-item flex items-center justify-between">
-            <span><i class="fa-solid fa-arrows-spin w-4 text-center mr-2"></i> Bearing (2 parts)</span>
+            <span><svg class="ic w-4 mr-2" viewBox="0 0 640 640" fill="currentColor"><path d="M552 256L408 256C398.3 256 389.5 250.2 385.8 241.2C382.1 232.2 384.1 221.9 391 215L437.7 168.3C362.4 109.7 253.4 115 184.2 184.2C109.2 259.2 109.2 380.7 184.2 455.7C259.2 530.7 380.7 530.7 455.7 455.7C463.9 447.5 471.2 438.8 477.6 429.6C487.7 415.1 507.7 411.6 522.2 421.7C536.7 431.8 540.2 451.8 530.1 466.3C521.6 478.5 511.9 490.1 501 501C401 601 238.9 601 139 501C39.1 401 39 239 139 139C233.3 44.7 382.7 39.4 483.3 122.8L535 71C541.9 64.1 552.2 62.1 561.2 65.8C570.2 69.5 576 78.3 576 88L576 232C576 245.3 565.3 256 552 256z"/></svg> Bearing (2 parts)</span>
         </button>
         <button onclick="createJoint('spring')" class="w-full text-left px-4 py-1.5 menu-item flex items-center justify-between">
-            <span><i class="fa-solid fa-coil-spring w-4 text-center mr-2"></i> Spring (2 parts)</span>
+            <span><svg class="ic w-4 mr-2" viewBox="0 0 640 640" fill="currentColor"><path d="M128 128C128 110.3 142.3 96 160 96L480 96C492.4 96 503.7 103.2 509 114.4C514.3 125.6 512.6 138.9 504.6 148.5L228.3 480L480 480C497.7 480 512 494.3 512 512C512 529.7 497.7 544 480 544L160 544C147.6 544 136.3 536.8 131 525.6C125.7 514.4 127.4 501.1 135.4 491.5L411.7 160L160 160C142.3 160 128 145.7 128 128z"/></svg> Spring (2 parts)</span>
         </button>
         <button onclick="createJoint('rope')" class="w-full text-left px-4 py-1.5 menu-item flex items-center justify-between">
-            <span><i class="fa-solid fa-link w-4 text-center mr-2"></i> Rope (2 parts)</span>
+            <span><svg class="ic w-4 mr-2" viewBox="0 0 640 640" fill="currentColor"><path d="M160 221.5C160 152.2 216.2 96 285.5 96L432 96C449.7 96 464 110.3 464 128C464 145.7 449.7 160 432 160L285.5 160C251.5 160 224 187.5 224 221.5C224 252.5 247.1 278.7 277.9 282.5L370.1 294C432.9 301.9 480 355.2 480 418.5C480 487.8 423.8 544 354.5 544L208 544C190.3 544 176 529.7 176 512C176 494.3 190.3 480 208 480L354.5 480C388.5 480 416 452.5 416 418.5C416 387.5 392.9 361.3 362.1 357.5L269.9 346C207.1 338.1 160 284.8 160 221.5z"/></svg> Rope (2 parts)</span>
         </button>
         <button onclick="createJoint('thruster')" class="w-full text-left px-4 py-1.5 menu-item flex items-center justify-between">
-            <span><i class="fa-solid fa-rocket w-4 text-center mr-2"></i> Thruster (1 part)</span>
+            <span><svg class="ic w-4 mr-2" viewBox="0 0 640 640" fill="currentColor"><path d="M500.5 320.5L499.8 318.6C465.8 224.8 410 140.5 337.1 72.5L333.8 69.5C330.1 66 325.1 64 320 64C314.9 64 309.9 66 306.2 69.5L302.9 72.5C230 140.5 174.2 224.8 140.2 318.6L139.5 320.5C131.9 341.3 128 363.4 128 385.6C128 490.7 214.8 576 320 576C425.2 576 512 490.7 512 385.6C512 363.4 508.1 341.4 500.5 320.5zM409.7 370C413.8 379.3 415.9 389.4 415.9 399.5C415.9 452.5 372.9 496 319.9 496C266.9 496 223.9 452.5 223.9 399.5C223.9 389.4 226 379.2 230.1 370L232 365.7C247.8 330.3 269.9 298 297.3 270.6L306.2 261.7C309.8 258.1 314.7 256.1 319.8 256.1C324.9 256.1 329.8 258.1 333.4 261.7L342.3 270.6C369.7 298 391.9 330.3 407.6 365.7L409.5 370z"/></svg> Thruster (1 part)</span>
         </button>
     </div>
 
@@ -445,7 +584,8 @@ text-xl{line-height:1.75rem}.text-xl{font-size:1.25rem}.text-xs{font-size:.75rem
         let selectedObject = null;
         let interactionMode = 'object';
         let isSimulating = false;
-        let pressedKeys = [], startMenuOpen = true;
+        let pressedKeys = [], startMenuOpen = true, workshopOpen = false;
+        let logic = { nodes: [], wires: [] }, logicVals = new Map(), logicState = new Map(), logicKeyCapture = null, logicActive = false, keepLogicOnRestore = false, logicSig = '', logicEls = null, logicView = { x: 0, y: 0 }, logicSel = new Set();
         let snapToGrid = true;
         let gridSize = 0.5;
         // Joint two-click placement state
@@ -598,7 +738,13 @@ text-xl{line-height:1.75rem}.text-xl{font-size:1.25rem}.text-xs{font-size:.75rem
             
             new MutationObserver(() => enhanceSpinners(document.getElementById('inspector-content')))
                 .observe(document.getElementById('inspector-content'), { childList: true, subtree: true });
+            const selObs = new MutationObserver(() => { enhanceSelects(document.getElementById('inspector-content')); enhanceSelects(document.getElementById('logic-nodes')); });
+            selObs.observe(document.getElementById('inspector-content'), { childList: true, subtree: true });
+            selObs.observe(document.getElementById('logic-nodes'), { childList: true });
+            enhanceSelects(document.getElementById('logic-panel'));
 
+            initLogicCanvas();
+            wkInit(); wkAfterRedirect();
             animate();
         };
 
@@ -685,7 +831,14 @@ text-xl{line-height:1.75rem}.text-xl{font-size:1.25rem}.text-xs{font-size:.75rem
             world.gravity.set(0, 0, -9.82);
             world.broadphase = new CANNON.NaiveBroadphase();
             world.solver.iterations = 60;
-            world.narrowphase.enableFrictionReduction = true;   // one friction per touching pair, not one per contact point (was 4x+ too grippy)
+            // Share each touching pair's friction budget across its contact points (keeps spin resistance, avoids Nx too much grip)
+            const origSolve = world.solver.solve.bind(world.solver);
+            world.solver.solve = function (dt, wd) {
+                const cnt = new Map(), key = e => Math.min(e.bi.id, e.bj.id) + '_' + Math.max(e.bi.id, e.bj.id);
+                wd.frictionEquations.forEach(e => cnt.set(key(e), (cnt.get(key(e)) || 0) + 1));
+                wd.frictionEquations.forEach(e => { const n = cnt.get(key(e)) / 2; e.minForce /= n; e.maxForce /= n; });
+                return origSolve(dt, wd);
+            };
             world.addEventListener('preStep', () => {
                 world.constraints.forEach(c => {
                     if (c instanceof OffsetDistance) { c.equations.forEach(eq => eq.setSpookParams(1e7, 4, SUB_DT)); return; }
@@ -696,6 +849,10 @@ text-xl{line-height:1.75rem}.text-xl{font-size:1.25rem}.text-xs{font-size:.75rem
             world.addEventListener('preStep', applyGrabForce);
             world.addEventListener('preStep', () => joints.forEach(j => {
                 if (j.type === 'bearing' && j.constraint) servoStep(j);
+                if (j.type === 'rope' && j.constraint && j.rKeys && j.rKeys.length) {
+                    let r = 0; for (const hk of j.rKeys) if (hkActive(hk)) r += hk.rate;
+                    if (r) { j.len = Math.max(j.minLen || 0.2, Math.min(j.maxLen || 100, j.len + r * SUB_DT)); j.constraint.L = j.len; }
+                }
                 if (j.type === 'bearing' && j.mode === 'motor' && j.constraint) {
                     const c = j.constraint;
                     const max = Math.max(Math.abs(j.rpm), ...(j.mKeys || []).map(k => Math.abs(k.rpm))) * Math.PI / 30;
@@ -733,7 +890,7 @@ text-xl{line-height:1.75rem}.text-xl{font-size:1.25rem}.text-xs{font-size:.75rem
             });
 
             const groundShape = new CANNON.Plane();
-            const groundBody = new CANNON.Body({ mass: 0, material: frictionMaterial(1) });   // floor never limits grip: the part's own friction decides
+            const groundBody = Object.assign(new CANNON.Body({ mass: 0, material: frictionMaterial(100) }), { _ground: true });   // floor never limits grip: the part's own friction decides
             groundBody.addShape(groundShape);
             world.addBody(groundBody);
         }
@@ -811,22 +968,25 @@ text-xl{line-height:1.75rem}.text-xl{font-size:1.25rem}.text-xs{font-size:.75rem
 
         // ---- per-part friction & density ----
         const frictionMats = new Map();
+        // cannon caps friction as an impulse PER STEP (no dt scaling), so at 360 steps/s every mu>0 acted ~360x too strong; scale by SUB_DT to get real Coulomb friction
         function frictionMaterial(f) {
             f = Math.max(0, f);
             if (frictionMats.has(f)) return frictionMats.get(f);
             const m = new CANNON.Material('f' + f);
-            frictionMats.forEach((o, of) => world.addContactMaterial(new CANNON.ContactMaterial(m, o, { friction: Math.min(f, of), restitution: world.defaultContactMaterial.restitution })));
-            world.addContactMaterial(new CANNON.ContactMaterial(m, m, { friction: f, restitution: world.defaultContactMaterial.restitution }));
+            frictionMats.forEach((o, of) => world.addContactMaterial(new CANNON.ContactMaterial(m, o, { friction: Math.min(f, of) * SUB_DT, restitution: world.defaultContactMaterial.restitution })));
+            world.addContactMaterial(new CANNON.ContactMaterial(m, m, { friction: f * SUB_DT, restitution: world.defaultContactMaterial.restitution }));
             frictionMats.set(f, m);
             return m;
         }
-        function partMass(p) { return p.isAnchored ? 0 : p.dimensions.x * p.dimensions.y * p.dimensions.z * (p.density !== undefined ? p.density : 1); }
+        function partMass(p) { if (p.isSensor) return p._attached ? 0.05 : 0; return p.isAnchored ? 0 : p.dimensions.x * p.dimensions.y * p.dimensions.z * (p.density !== undefined ? p.density : 1); }
         function applyPartPhysics(p) {
-            if (p.friction === undefined) p.friction = 0.3;
+            if (p.friction === undefined) p.friction = 2;
             if (p.density === undefined) p.density = 1;
             p.body.material = frictionMaterial(p.friction);
+            p.body.collisionResponse = p.isSensor ? false : !p.noCollide;
             p.body.mass = partMass(p); p.body.updateMassProperties();
         }
+        function setPartFlag(k, on) { selectionList().forEach(p => { p[k] = on; applyPartPhysics(p); }); updateInspector(); }
         function setPartProp(k, v) {
             const val = Math.max(k === 'density' ? 0.01 : 0, parseFloat(v) || 0);
             selectionList().forEach(p => { p[k] = val; applyPartPhysics(p); });
@@ -834,9 +994,254 @@ text-xl{line-height:1.75rem}.text-xl{font-size:1.25rem}.text-xs{font-size:.75rem
         }
 
         // ---- auto bearing axis / pivot, auto rope & spring length ----
-        function hkActive(hk) { return !!hk.key && (hk.toggle ? !!hk.on : pressedKeys.includes(hk.key)); }
+        // ================= Sensors & Logic =================
+        function makeSensor(p) {
+            p.isSensor = true; p.isAnchored = true;
+            p.body.mass = 0; p.body.updateMassProperties(); p.body.type = CANNON.Body.STATIC;
+            p.body.collisionResponse = false; p.body._sensor = true; p.body._sensorPart = p;
+            const m = p.mesh.material; m.transparent = true; m.opacity = 0; m.depthWrite = false; m.map = null; m.needsUpdate = true;
+            p.mesh.castShadow = false; p.mesh.receiveShadow = false;
+            p.sensorLines = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(p.dimensions.x, p.dimensions.y, p.dimensions.z)), new THREE.LineBasicMaterial({ color: 0xef4444 }));
+            p.mesh.add(p.sensorLines);
+        }
+        // At sim start: a sensor that touches or is joined to a part becomes light-weight dynamic and rides along with it (ignoring it); otherwise it stays put.
+        function prepareSensors() {
+            parts.forEach(p => {
+                if (!p.isSensor) return;
+                const partners = new Set();
+                glues.forEach(g => { if (g.a === p) partners.add(g.b); else if (g.b === p) partners.add(g.a); });
+                joints.forEach(j => { if (j.a === p && j.b !== p) partners.add(j.b); else if (j.b === p && j.a !== p) partners.add(j.a); });
+                p._ignore = new Set([...partners].map(q => q.body));
+                p._attached = partners.size > 0;
+                if (p._attached) {
+                    p.isAnchored = false; p.body.type = CANNON.Body.DYNAMIC; p.body.mass = 0.05; p.body.updateMassProperties();
+                    p.body.velocity.set(0, 0, 0); p.body.angularVelocity.set(0, 0, 0);
+                }
+            });
+        }
+        function resetSensors() {
+            parts.forEach(p => {
+                if (!p.isSensor) return;
+                p._attached = false; p._ignore = null; p.isAnchored = true;
+                p.body.type = CANNON.Body.STATIC; p.body.mass = 0; p.body.updateMassProperties();
+            });
+        }
+        function createSensor() {
+            const p = createPrimitive('block', new THREE.Vector3(0, 0, 2), new THREE.Vector3(3, 3, 3), 0xef4444, true);
+            makeSensor(p); p.name = 'Sensor ' + parts.filter(x => x.isSensor).length;
+            selectObject(p); updateOutliner();
+        }
+        const LOGIC_DEFS = {
+            in_key: { t: 'Hotkey input', ins: 0, cls: 'in' }, in_sensor: { t: 'Sensor input', ins: 0, cls: 'in' },
+            const_true: { t: 'TRUE', ins: 0, cls: 'in' }, const_false: { t: 'FALSE', ins: 0, cls: 'in' },
+            and: { t: 'AND', ins: 2, cls: 'gate' }, or: { t: 'OR', ins: 2, cls: 'gate' }, xor: { t: 'XOR', ins: 2, cls: 'gate' },
+            nand: { t: 'NAND', ins: 2, cls: 'gate' }, nor: { t: 'NOR', ins: 2, cls: 'gate' }, not: { t: 'NOT', ins: 1, cls: 'gate' },
+            out_joint: { t: 'Joint output', ins: 1, cls: 'out', noOut: true }, out_color: { t: 'Colour output', ins: 1, cls: 'out', noOut: true }
+        };
+        const lgEsc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+        function logicChanged() { resetLogicOutputs(); renderLogic(true); }
+        function gateIns(n) {
+            const d = LOGIC_DEFS[n.type]; if (d.ins !== 2) return d.ins;
+            const used = new Set(logic.wires.filter(w => w.to === n.id).map(w => w.port));
+            const k = Math.max(2, used.size ? Math.max(...used) + 1 : 0);
+            for (let i = 0; i < k; i++) if (!used.has(i)) return k;
+            return k + 1;   // every port is taken: grow a new one
+        }
+        function addLogicNode(type, px, py) {
+            if (!type) return;
+            const c = logic.nodes.length;
+            logic.nodes.push({ id: 'n' + Date.now().toString(36) + Math.floor(Math.random() * 1e4), type, x: px !== undefined ? px : 14 - logicView.x + (c * 30) % 240, y: py !== undefined ? py : 12 - logicView.y + (c * 36) % 150 });
+            logicChanged();
+        }
+        function delLogicNode(id) { logicSel.delete(id); logic.nodes = logic.nodes.filter(n => n.id !== id); logic.wires = logic.wires.filter(w => w.from !== id && w.to !== id); logicChanged(); }
+        function setLogicNode(id, k, v) { const n = logic.nodes.find(n => n.id === id); if (!n) return; n[k] = v; if (k === 'joint') n.hk = ''; logicChanged(); }
+        function logicCaptureKey(id) { logicKeyCapture = id; renderLogic(true); }
+        function toggleLogicExpand() {
+            const on = document.getElementById('logic-panel').classList.toggle('expanded');
+            document.getElementById('controls-panel').style.display = on ? 'none' : '';
+            document.getElementById('logic-expand-icon').className = on ? 'fa-solid fa-compress' : 'fa-solid fa-expand';
+            setTimeout(drawWires, 0);
+        }
+        function wirePath(a, b) { const dx = Math.max(30, Math.abs(b[0] - a[0]) / 2); return `M${a[0]},${a[1]} C${a[0] + dx},${a[1]} ${b[0] - dx},${b[1]} ${b[0]},${b[1]}`; }
+        function portCenter(el, r) { const b = el.getBoundingClientRect(); return [b.left + b.width / 2 - r.left, b.top + b.height / 2 - r.top]; }
+        function drawWires() {
+            const nodesEl = document.getElementById('logic-nodes'), svg = document.getElementById('logic-wires'), r = document.getElementById('logic-world').getBoundingClientRect();
+            logicEls = { nodes: new Map(), wires: [] };
+            nodesEl.querySelectorAll('.lg-node').forEach(e => logicEls.nodes.set(e.dataset.id, e));
+            svg.innerHTML = '';
+            logic.wires.forEach(w => {
+                const ea = nodesEl.querySelector(`.lg-port.out[data-node="${w.from}"]`), eb = nodesEl.querySelector(`.lg-port.in[data-node="${w.to}"][data-port="${w.port}"]`);
+                if (!ea || !eb) return;
+                const d = wirePath(portCenter(ea, r), portCenter(eb, r)), NS = 'http://www.w3.org/2000/svg';
+                const hit = document.createElementNS(NS, 'path'); hit.setAttribute('d', d); hit.setAttribute('class', 'lg-hit');
+                hit.addEventListener('dblclick', () => { logic.wires = logic.wires.filter(x => x !== w); logicChanged(); });
+                const t = document.createElementNS(NS, 'title'); t.textContent = 'Double-click to remove'; hit.appendChild(t);
+                const p = document.createElementNS(NS, 'path'); p.setAttribute('d', d); p.setAttribute('class', 'lg-wire');
+                svg.appendChild(hit); svg.appendChild(p); logicEls.wires.push({ el: p, w });
+            });
+            paintLogic(); paintSel();
+        }
+        function paintSel() { if (logicEls) logicEls.nodes.forEach((el, id) => el.classList.toggle('sel', logicSel.has(id))); }
+        function applyLogicView() {
+            document.getElementById('logic-world').style.transform = `translate(${logicView.x}px, ${logicView.y}px)`;
+            const p = `${logicView.x}px ${logicView.y}px`;
+            document.getElementById('logic-canvas').style.backgroundPosition = p + ', ' + p;
+        }
+        function paintLogic() {
+            if (!logicEls) return;
+            logicEls.nodes.forEach((el, id) => el.classList.toggle('on', !!logicVals.get(id)));
+            logicEls.wires.forEach(o => o.el.classList.toggle('on', !!logicVals.get(o.w.from)));
+        }
+        function renderLogic(force) {
+            const nodesEl = document.getElementById('logic-nodes'); if (!nodesEl) return;
+            const sig = JSON.stringify([logic, parts.map(p => [p.id, p.name, !!p.isSensor]), joints.map(j => [j.id, j.name, (jointKeyList(j) || []).map(k => [k.id, k.key])]), logicKeyCapture]);
+            if (!force && sig === logicSig) return;
+            logicSig = sig;
+            const opt = (v, t, sel) => `<option value="${lgEsc(v)}" ${sel ? 'selected' : ''}>${lgEsc(t)}</option>`;
+            const sel = (n, k, ph, items) => `<select class="blender-input w-full" onchange="setLogicNode('${n.id}','${k}',this.value)">${opt('', ph, !n[k])}${items.map(([v, t]) => opt(v, t, n[k] === v)).join('')}</select>`;
+            nodesEl.innerHTML = logic.nodes.map(n => {
+                const d = LOGIC_DEFS[n.type]; let body = '';
+                if (n.type === 'in_key') body = `<button onclick="logicCaptureKey('${n.id}')" class="w-full">${logicKeyCapture === n.id ? 'Press a key...' : (n.key || 'none').toUpperCase()}</button><label class="lg-row"><span>Toggle</span><input type="checkbox" ${n.toggle ? 'checked' : ''} onchange="setLogicNode('${n.id}','toggle',this.checked)" /></label>`;
+                else if (n.type === 'const_true' || n.type === 'const_false') body = `<div style="text-align:center;font-weight:bold;color:${n.type === 'const_true' ? '#22c55e' : '#ef4444'}">${n.type === 'const_true' ? 'ON' : 'OFF'}</div>`;
+                else if (n.type === 'in_sensor') body = sel(n, 'sensor', '- pick sensor -', parts.filter(p => p.isSensor).map(p => [p.id, p.name]));
+                else if (n.type === 'out_joint') {
+                    const j = joints.find(j => j.id === n.joint);
+                    body = sel(n, 'joint', '- pick joint -', joints.filter(j => jointKeyList(j)).map(j => [j.id, j.name]))
+                        + (j ? sel(n, 'hk', '- pick hotkey -', (jointKeyList(j) || []).map((k, i) => [k.id, `Hotkey ${i + 1}${k.key ? ' (' + k.key.toUpperCase() + ')' : ''}`])) : '');
+                } else if (n.type === 'out_color') body = sel(n, 'part', '- pick part -', parts.filter(p => !p.isSensor).map(p => [p.id, p.name]))
+                    + `<label class="lg-row"><span>Colour</span><input type="color" value="${n.color || '#22c55e'}" onchange="setLogicNode('${n.id}','color',this.value)" style="width:48px;height:16px;padding:0" /></label>`;
+                let ports = '';
+                const N = gateIns(n);
+                for (let i = 0; i < N; i++) ports += `<div class="lg-port in" data-node="${n.id}" data-port="${i}" style="top:${(i + 1) / (N + 1) * 100}%" onmousedown="logicPortDown(event,'${n.id}','in',${i})"></div>`;
+                if (!d.noOut) ports += `<div class="lg-port out" data-node="${n.id}" data-port="0" style="top:50%" onmousedown="logicPortDown(event,'${n.id}','out',0)"></div>`;
+                return `<div class="lg-node ${d.cls}${logicSel.has(n.id) ? ' sel' : ''}" data-id="${n.id}" style="left:${n.x}px;top:${n.y}px"><div class="lg-head" onmousedown="logicDragNode(event,'${n.id}')"><span>${d.t}</span><span class="lg-x" onmousedown="event.stopPropagation()" onclick="delLogicNode('${n.id}')">&times;</span></div><div class="lg-body" style="min-height:${Math.max(22, N * 20)}px">${body}</div>${ports}</div>`;
+            }).join('');
+            drawWires(); applyLogicView();
+        }
+        function logicDragNode(e, id) {
+            if (e.button !== 0) return; e.preventDefault();
+            if (e.shiftKey && logicSel.has(id)) { logicSel.delete(id); paintSel(); return; }
+            if (!logicSel.has(id)) { if (!e.shiftKey) logicSel.clear(); logicSel.add(id); paintSel(); }
+            const group = logic.nodes.filter(n => logicSel.has(n.id)).map(n => ({ n, ox: n.x, oy: n.y, el: logicEls.nodes.get(n.id) })), sx = e.clientX, sy = e.clientY;
+            const mv = ev => { group.forEach(g => { g.n.x = g.ox + ev.clientX - sx; g.n.y = g.oy + ev.clientY - sy; g.el.style.left = g.n.x + 'px'; g.el.style.top = g.n.y + 'px'; }); drawWires(); };
+            const up = () => { window.removeEventListener('mousemove', mv); window.removeEventListener('mouseup', up); };
+            window.addEventListener('mousemove', mv); window.addEventListener('mouseup', up);
+        }
+        function initLogicCanvas() {
+            const cv = document.getElementById('logic-canvas'), box = document.getElementById('logic-box');
+            cv.addEventListener('contextmenu', e => e.preventDefault());
+            cv.addEventListener('mousedown', e => {
+                if (e.button === 1 || e.button === 2) {   // pan the (infinite) view with M3 / M2
+                    e.preventDefault();
+                    const sx = e.clientX, sy = e.clientY, ox = logicView.x, oy = logicView.y;
+                    const mv = ev => { logicView.x = ox + ev.clientX - sx; logicView.y = oy + ev.clientY - sy; applyLogicView(); };
+                    const up = () => { window.removeEventListener('mousemove', mv); window.removeEventListener('mouseup', up); };
+                    window.addEventListener('mousemove', mv); window.addEventListener('mouseup', up);
+                    return;
+                }
+                if (e.button !== 0 || e.target.closest('.lg-node, .lg-port, .lg-hit')) return;
+                const r = cv.getBoundingClientRect(), sx = e.clientX, sy = e.clientY, add = e.shiftKey, before = new Set(logicSel);
+                if (!add) { logicSel.clear(); paintSel(); }
+                const mv = ev => {
+                    const x1 = Math.min(sx, ev.clientX), x2 = Math.max(sx, ev.clientX), y1 = Math.min(sy, ev.clientY), y2 = Math.max(sy, ev.clientY);
+                    box.style.display = 'block'; box.style.left = (x1 - r.left) + 'px'; box.style.top = (y1 - r.top) + 'px'; box.style.width = (x2 - x1) + 'px'; box.style.height = (y2 - y1) + 'px';
+                    logic.nodes.forEach(n => {
+                        const el = logicEls.nodes.get(n.id); if (!el) return;
+                        const b = el.getBoundingClientRect();
+                        if ((b.right > x1 && b.left < x2 && b.bottom > y1 && b.top < y2) || (add && before.has(n.id))) logicSel.add(n.id); else logicSel.delete(n.id);
+                    });
+                    paintSel();
+                };
+                const up = () => { box.style.display = 'none'; window.removeEventListener('mousemove', mv); window.removeEventListener('mouseup', up); };
+                window.addEventListener('mousemove', mv); window.addEventListener('mouseup', up);
+            });
+            applyLogicView();
+        }
+        function logicPortDown(e, id, kind, port) {
+            e.preventDefault(); e.stopPropagation();
+            const cv = document.getElementById('logic-canvas'), svg = document.getElementById('logic-wires'), r = document.getElementById('logic-world').getBoundingClientRect(), a = portCenter(e.target, r);
+            const tmp = document.createElementNS('http://www.w3.org/2000/svg', 'path'); tmp.setAttribute('class', 'lg-wire tmp'); svg.appendChild(tmp); cv.classList.add('wiring');
+            const draw = ev => { const m = [ev.clientX - r.left, ev.clientY - r.top]; tmp.setAttribute('d', kind === 'out' ? wirePath(a, m) : wirePath(m, a)); };
+            draw(e);
+            const up = ev => {
+                window.removeEventListener('mousemove', draw); window.removeEventListener('mouseup', up); cv.classList.remove('wiring'); tmp.remove();
+                const t = document.elementFromPoint(ev.clientX, ev.clientY), el = t && t.closest ? t.closest('.lg-port') : null;
+                if (!el || el.dataset.node === id || el.classList.contains('out') === (kind === 'out')) return;
+                const from = kind === 'out' ? id : el.dataset.node, to = kind === 'in' ? id : el.dataset.node, tp = kind === 'in' ? port : +el.dataset.port;
+                logic.wires = logic.wires.filter(w => !(w.to === to && w.port === tp));
+                logic.wires.push({ from, to, port: tp });
+                logicChanged();
+            };
+            window.addEventListener('mousemove', draw); window.addEventListener('mouseup', up);
+        }
+        function resetLogicOutputs() {
+            logicActive = false; logicVals.clear(); logicState.clear();
+            joints.forEach(j => (jointKeyList(j) || []).forEach(hk => { hk.logic = false; hk.lb = false; }));
+            parts.forEach(p => { if (p.isSensor) { p.sensorOn = false; if (p.sensorLines) p.sensorLines.material.color.setHex(0xef4444); } else if (p.mesh) p.mesh.material.color.set(p.color); });
+            paintLogic();
+        }
+        function evalLogic() {
+            logicActive = true;
+            const act = new Set();
+            world.contacts.forEach(c => {
+                const s1 = c.bi._sensor, s2 = c.bj._sensor; if (s1 === s2) return;
+                const sb = s1 ? c.bi : c.bj, ob = s1 ? c.bj : c.bi, sp = sb._sensorPart;
+                if (!ob.collisionResponse || ob._ground) return;                 // ghost (no-collision) parts and the floor don't count
+                if (sp && sp._ignore && sp._ignore.has(ob)) return;               // the part it is attached to doesn't count
+                act.add(sb);
+            });
+            parts.forEach(p => { if (p.isSensor) { p.sensorOn = act.has(p.body); p.sensorLines.material.color.setHex(p.sensorOn ? 0x22c55e : 0xef4444); } });
+            if (!logic.nodes.length) return;
+            joints.forEach(j => (jointKeyList(j) || []).forEach(hk => { hk.logic = false; hk.lb = false; }));
+            const memo = new Map(), busy = new Set(), now = performance.now();
+            const st = id => { let s = logicState.get(id); if (!s) logicState.set(id, s = { on: false, prev: false }); return s; };
+            const get = n => {
+                if (memo.has(n.id)) return memo.get(n.id);
+                if (busy.has(n.id)) return false;
+                busy.add(n.id);
+                const inp = i => { const w = logic.wires.find(w => w.to === n.id && w.port === i), f = w && logic.nodes.find(x => x.id === w.from); return f ? get(f) : false; };
+                let v = false;
+                switch (n.type) {
+                    case 'in_key': v = n.toggle ? st(n.id).on : (!!n.key && pressedKeys.includes(n.key)); break;
+                    case 'const_true': v = true; break;
+                    case 'const_false': v = false; break;
+                    case 'in_sensor': { const p = parts.find(p => p.id === n.sensor); v = !!(p && p.sensorOn); break; }
+                    case 'and': case 'or': case 'xor': case 'nand': case 'nor': {
+                        const vs = logic.wires.filter(w => w.to === n.id).map(w => { const f = logic.nodes.find(x => x.id === w.from); return f ? get(f) : false; });
+                        const t = vs.filter(Boolean).length;
+                        if (!vs.length) v = false;
+                        else if (n.type === 'and') v = t === vs.length;
+                        else if (n.type === 'or') v = t > 0;
+                        else if (n.type === 'xor') v = t % 2 === 1;
+                        else if (n.type === 'nand') v = t !== vs.length;
+                        else v = t === 0;
+                        break;
+                    }
+                    case 'not': v = !inp(0); break;
+                    default: v = inp(0);
+                }
+                busy.delete(n.id); memo.set(n.id, !!v); return !!v;
+            };
+            logic.nodes.forEach(n => {
+                const v = get(n), s = st(n.id); logicVals.set(n.id, v);
+                if (n.type === 'out_joint') {
+                    const j = joints.find(j => j.id === n.joint), hk = j && (jointKeyList(j) || []).find(k => k.id === n.hk);
+                    if (hk) {
+                        hk.lb = true;
+                        if (hk.toggle) { if (v && !s.prev) { hk.on = !hk.on; hk.t = now; } }
+                        else if (v) { if (!s.prev) hk.t = now; hk.logic = true; }
+                    }
+                } else if (n.type === 'out_color') {
+                    const p = parts.find(p => p.id === n.part);
+                    if (p && !p.isSensor) p.mesh.material.color.set(v ? (n.color || '#22c55e') : p.color);
+                }
+                s.prev = v;
+            });
+            paintLogic();
+        }
+        function hkActive(hk) { return hk.toggle ? !!hk.on : (!!hk.logic || (!!hk.key && pressedKeys.includes(hk.key))); }
         function lastActive(list) { let b = null; for (const hk of (list || [])) if (hkActive(hk) && (!b || (hk.t || 0) >= (b.t || 0))) b = hk; return b; }
-        function jointKeyList(j) { return j.type === 'thruster' ? j.tKeys : j.type === 'bearing' ? (j.mode === 'servo' ? j.sKeys : j.mode === 'motor' ? j.mKeys : null) : null; }
+        function jointKeyList(j) { return j.type === 'thruster' ? j.tKeys : j.type === 'rope' ? j.rKeys : j.type === 'bearing' ? (j.mode === 'servo' ? j.sKeys : j.mode === 'motor' ? j.mKeys : null) : null; }
         function setHotkeyToggle(list, id, on) {
             const hk = selectedJoint && (selectedJoint[list] || []).find(k => k.id === id);
             if (hk) { hk.toggle = on; hk.on = false; }
@@ -854,7 +1259,7 @@ text-xl{line-height:1.75rem}.text-xl{font-size:1.25rem}.text-xs{font-size:.75rem
         }
         function normalizeThruster(j) {
             j.dirKey = j.dirKey || '+z'; j.base = j.base || 0;
-            j.tKeys = (Array.isArray(j.tKeys) ? j.tKeys : []).map(k => ({ id: k.id || newHotkeyId(), key: k.key || '', thrust: Number(k.thrust) || 0, toggle: !!k.toggle }));
+            j.tKeys = (Array.isArray(j.tKeys) ? j.tKeys : []).map(k => ({ id: k.id || newHotkeyId(), key: (k.key && k.key !== ' ') ? k.key : '', thrust: Number(k.thrust) || 0, toggle: !!k.toggle }));
         }
         function setThruster(k, v) { if (selectedJoint) { selectedJoint[k] = v; updateInspector(); } }
         function setThrusterOffset(a, v) { if (selectedJoint) { selectedJoint.la[a] = parseFloat(v) || 0; updateInspector(); } }
@@ -949,7 +1354,7 @@ text-xl{line-height:1.75rem}.text-xl{font-size:1.25rem}.text-xs{font-size:.75rem
             mesh.add(boxHelper);
 
             const mass = isAnchored ? 0 : dimensions.x * dimensions.y * dimensions.z;
-            const body = new CANNON.Body({ material: frictionMaterial(0.3),
+            const body = new CANNON.Body({ material: frictionMaterial(2),
                 mass: mass,
                 position: new CANNON.Vec3(position.x, position.y, position.z)
             });
@@ -964,7 +1369,7 @@ text-xl{line-height:1.75rem}.text-xl{font-size:1.25rem}.text-xs{font-size:.75rem
                 body: body,
                 dimensions: dimensions.clone(),
                 color: color,
-                isAnchored: isAnchored, friction: 0.3, density: 1,
+                isAnchored: isAnchored, friction: 2, density: 1,
                 boxHelper: boxHelper,
                 initialPos: position.clone(),
                 initialQuat: mesh.quaternion.clone(),
@@ -985,12 +1390,13 @@ text-xl{line-height:1.75rem}.text-xl{font-size:1.25rem}.text-xs{font-size:.75rem
         // ── Undo / Redo state capture ───────────────────────────────────────
         function captureState() {
             return {
+                logic: JSON.parse(JSON.stringify(logic)),
                 parts: parts.map(p => ({
                     id: p.id, name: p.name, type: p.type,
                     dimensions: { x: p.dimensions.x, y: p.dimensions.y, z: p.dimensions.z },
                     position: { x: p.mesh.position.x, y: p.mesh.position.y, z: p.mesh.position.z },
                     quaternion: { x: p.mesh.quaternion.x, y: p.mesh.quaternion.y, z: p.mesh.quaternion.z, w: p.mesh.quaternion.w },
-                    isAnchored: p.isAnchored, color: p.color, friction: p.friction, density: p.density
+                    isAnchored: p.isAnchored, color: p.color, friction: p.friction, density: p.density, isSensor: !!p.isSensor, noCollide: !!p.noCollide
                 })),
                 joints: joints.map(j => {
                     const copy = {};
@@ -1048,13 +1454,15 @@ text-xl{line-height:1.75rem}.text-xl{font-size:1.25rem}.text-xs{font-size:.75rem
                 mesh.castShadow = true; mesh.receiveShadow = true; scene.add(mesh);
                 const boxHelper = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(dimensions.x, dimensions.y, dimensions.z)), new THREE.LineBasicMaterial({ color: 0xf3e5ab }));
                 boxHelper.visible = false; boxHelper.update = () => {}; mesh.add(boxHelper);
-                const fr = pData.friction !== undefined ? pData.friction : 0.3, dn = pData.density !== undefined ? pData.density : 1;
+                const fr = pData.friction !== undefined ? pData.friction : 2, dn = pData.density !== undefined ? pData.density : 1;
                 const mass = pData.isAnchored ? 0 : dimensions.x * dimensions.y * dimensions.z * dn;
                 const body = new CANNON.Body({ material: frictionMaterial(fr), mass: mass, position: new CANNON.Vec3(position.x, position.y, position.z) });
                 body.quaternion.copy(new CANNON.Quaternion(quat.x, quat.y, quat.z, quat.w));
                 body.addShape(shape); world.addBody(body);
                 const partObj = { id: pData.id, name: pData.name, type: pData.type, mesh, body, dimensions: dimensions.clone(), color: pData.color, isAnchored: pData.isAnchored, friction: fr, density: dn, boxHelper, initialPos: position.clone(), initialQuat: quat.clone(), initialDim: dimensions.clone() };
                 mesh.userData.partObj = partObj; body.part = partObj; parts.push(partObj); partMap.set(pData.id, partObj);
+                if (pData.isSensor) makeSensor(partObj);
+                if (pData.noCollide) { partObj.noCollide = true; partObj.body.collisionResponse = false; }
             });
             refreshGlue(parts);
             snap.joints.forEach(jData => {
@@ -1072,20 +1480,25 @@ text-xl{line-height:1.75rem}.text-xl{font-size:1.25rem}.text-xs{font-size:.75rem
                 }
                 if (j.type === 'bearing') normalizeBearing(j);
                 else if (j.type === 'thruster') normalizeThruster(j);
-                else if (j.type === 'rope') { j.len = j.len !== undefined ? j.len : 3; }
+                else if (j.type === 'rope') {
+                    j.len = j.len !== undefined ? j.len : 3; j.minLen = j.minLen !== undefined ? j.minLen : 0.3; j.maxLen = j.maxLen !== undefined ? j.maxLen : 30;
+                    j.rKeys = (Array.isArray(j.rKeys) ? j.rKeys : []).map(k => ({ id: k.id || newHotkeyId(), key: (k.key && k.key !== ' ') ? k.key : '', rate: Number(k.rate) || 0, toggle: !!k.toggle }));
+                }
                 else { j.rest = j.rest !== undefined ? j.rest : 2; j.max = j.max !== undefined ? j.max : 4; j.k = j.k !== undefined ? j.k : 150; j.damp = j.damp !== undefined ? j.damp : 4; j.lockAxis = j.lockAxis !== undefined ? j.lockAxis : false; }
                 j.name = jData.name || (j.type.charAt(0).toUpperCase() + j.type.slice(1) + ' ' + (joints.length + 1));
                 buildJoint(j); makeJointVisual(j); joints.push(j);
             });
-            snap.glues.forEach(([idA, idB]) => { const a = partMap.get(idA), b = partMap.get(idB); if (a && b) { const c = new CANNON.LockConstraint(a.body, b.body, { maxForce: 1e6 }); c.collideConnected = false; world.addConstraint(c); glues.push({ a, b, c }); } });
-            snap.welds.forEach(([idA, idB]) => { const a = partMap.get(idA), b = partMap.get(idB); if (a && b && a !== b && !isConnected(a, b) && !(a.isAnchored && b.isAnchored)) { const c = new CANNON.LockConstraint(a.body, b.body, { maxForce: 1e6 }); c.collideConnected = false; world.addConstraint(c); welds.push({ a, b, c }); } });
+            snap.glues.forEach(([idA, idB]) => { const a = partMap.get(idA), b = partMap.get(idB); if (a && b) { const c = makeLock(a.body, b.body); c.collideConnected = false; world.addConstraint(c); glues.push({ a, b, c }); } });
+            snap.welds.forEach(([idA, idB]) => { const a = partMap.get(idA), b = partMap.get(idB); if (a && b && a !== b && !isConnected(a, b) && !(a.isAnchored && b.isAnchored)) { const c = makeLock(a.body, b.body); c.collideConnected = false; world.addConstraint(c); welds.push({ a, b, c }); } });
             if (snap.selectedObjectId) { const p = partMap.get(snap.selectedObjectId); if (p) selectObject(p); }
             if (snap.selectedJointId) { const j = joints.find(j => j.id === snap.selectedJointId); if (j) selectJoint(j); }
             snap.extraSel.forEach(id => { const p = partMap.get(id); if (p) extraSel.push(p); });
-            updateOutliner(); updateInspector();
+            if (!keepLogicOnRestore) logic = snap.logic ? JSON.parse(JSON.stringify(snap.logic)) : { nodes: [], wires: [] };
+            resetLogicOutputs();
+            updateOutliner(); updateInspector(); renderLogic(true);
         }
-        function undo() { if (simStarted) { resetPhysics(); showToast('Simulation reset - press Ctrl+Z again to undo an edit'); return; } if (undoStack.length === 0) return; redoStack.push(captureState()); const prev = undoStack.pop(); restoreState(prev); showToast("Undo"); }
-        function redo() { if (simStarted) { resetPhysics(); showToast('Simulation reset'); return; } if (redoStack.length === 0) return; undoStack.push(captureState()); const next = redoStack.pop(); restoreState(next); showToast("Redo"); }
+        function undo() { if (simStarted) { resetPhysics(); showToast('Simulation reset - press Ctrl+Z again to undo an edit'); return; } if (undoStack.length === 0) return; redoStack.push(captureState()); const prev = undoStack.pop(); keepLogicOnRestore = true; restoreState(prev); keepLogicOnRestore = false; showToast("Undo"); }
+        function redo() { if (simStarted) { resetPhysics(); showToast('Simulation reset'); return; } if (redoStack.length === 0) return; undoStack.push(captureState()); const next = redoStack.pop(); keepLogicOnRestore = true; restoreState(next); keepLogicOnRestore = false; showToast("Redo"); }
 
         // ── Export / Import ─────────────────────────────────────────────────
         function exportBuild() {
@@ -1146,6 +1559,7 @@ text-xl{line-height:1.75rem}.text-xl{font-size:1.25rem}.text-xs{font-size:.75rem
                 autoBearing(j);
             } else if (type === 'rope') {
                 j.len = jointDistance(j);
+                Object.assign(j, { minLen: 0.3, maxLen: 30, rKeys: [{ id: newHotkeyId(), key: '', rate: 1 }, { id: newHotkeyId(), key: '', rate: -1 }] });
             } else {
                 const dist = jointDistance(j);
                 Object.assign(j, { rest: dist, max: Math.round(dist * 200) / 100, k: 150, damp: 4, lockAxis: false });
@@ -1165,7 +1579,8 @@ text-xl{line-height:1.75rem}.text-xl{font-size:1.25rem}.text-xs{font-size:.75rem
         function buildJoint(j) {
             if (j.constraint) { world.removeConstraint(j.constraint); j.constraint = null; }
             removeAxisLock(j);
-            ['sKeys', 'mKeys', 'tKeys'].forEach(l => (j[l] || []).forEach(k => { k.on = false; }));
+            if (j.type === 'rope') { if (j.len0 === undefined) j.len0 = j.len; else j.len = j.len0; }
+            ['sKeys', 'mKeys', 'tKeys', 'rKeys'].forEach(l => (j[l] || []).forEach(k => { k.on = false; }));
             if (j.type === 'thruster') return;
             if (j.constraint) world.removeConstraint(j.constraint);
             const A = j.a.body, B = j.b.body;
@@ -1207,7 +1622,7 @@ text-xl{line-height:1.75rem}.text-xl{font-size:1.25rem}.text-xs{font-size:.75rem
                 else if (j.mode === 'motor' && j.freeIdle && !j.rpm) c.disableMotor();
                 else { c.enableMotor(); c.setMotorMaxForce(j.torque); c.setMotorSpeed(j.mode === 'motor' ? -j.rpm * Math.PI / 30 : 0); }
             } else if (j.type === 'rope') {
-                j.len = Math.max(0.1, j.len); c.L = j.len;
+                j.len = Math.max(0.1, j.len); j.len0 = j.len; c.L = j.len;
             } else {
                 j.rest = Math.max(0, j.rest); j.max = Math.max(j.max, j.rest + 0.05); c.L = j.max;
             }
@@ -1308,9 +1723,22 @@ text-xl{line-height:1.75rem}.text-xl{font-size:1.25rem}.text-xs{font-size:.75rem
             const same = (x) => (x.a === a && x.b === b) || (x.a === b && x.b === a);
             return joints.some(same) || welds.some(same);
         }
+        function makeLock(bodyA, bodyB) {
+            const c = new CANNON.LockConstraint(bodyA, bodyB, { maxForce: 1e6 });
+            const rinv = bodyB.quaternion.inverse().mult(bodyA.quaternion);   // remembers how B is rotated relative to A right now
+            const X = new CANNON.Vec3(1, 0, 0), Y = new CANNON.Vec3(0, 1, 0), Z = new CANNON.Vec3(0, 0, 1);
+            c.update = function () {
+                CANNON.PointToPointConstraint.prototype.update.call(this);
+                const qb = this.bodyB.quaternion.mult(rinv), qa = this.bodyA.quaternion, r1 = this.rotationalEquation1, r2 = this.rotationalEquation2, r3 = this.rotationalEquation3;
+                qa.vmult(X, r1.axisA); qb.vmult(Y, r1.axisB);
+                qa.vmult(Y, r2.axisA); qb.vmult(Z, r2.axisB);
+                qa.vmult(Z, r3.axisA); qb.vmult(X, r3.axisB);
+            };
+            return c;
+        }
         function weld(a, b) {
             if (a === b || isConnected(a, b) || (a.isAnchored && b.isAnchored)) return false;
-            const c = new CANNON.LockConstraint(a.body, b.body, { maxForce: 1e6 });
+            const c = makeLock(a.body, b.body);
             c.collideConnected = false;
             world.addConstraint(c); welds.push({ a, b, c });
             return true;
@@ -1337,13 +1765,191 @@ text-xl{line-height:1.75rem}.text-xl{font-size:1.25rem}.text-xs{font-size:.75rem
         function detectGlues() {
             glues = [];
             for (let i = 0; i < parts.length; i++) for (let j = i + 1; j < parts.length; j++) {
-                if (!jointLinked(parts[i], parts[j]) && touching(parts[i], parts[j])) glues.push({ a: parts[i], b: parts[j] });
+                if (!(parts[i].isSensor && parts[j].isSensor) && !jointLinked(parts[i], parts[j]) && touching(parts[i], parts[j])) glues.push({ a: parts[i], b: parts[j] });
             }
         }
         function detachSelected() {
             if (!selectedObject) return;
             glues = glues.filter(g => g.a !== selectedObject && g.b !== selectedObject);
             updateInspector(); showToast('Detached from neighbouring parts');
+        }
+
+        // ================= Workshop (Supabase + GitHub login) =================
+        // Fill these in from Supabase -> Project Settings -> API (the anon key is safe to ship; Row Level Security protects the data)
+        const SUPABASE_URL = 'https://kohugmlkiwtjppdvbgg.supabase.co';
+        const SUPABASE_ANON_KEY = 'sb_publishable_4VD8aSuAq0Uu2hmyDr3ggQ_Yo1IgcZF';
+        const STAR_SVG = '<svg viewBox="0 0 640 640" fill="currentColor"><path d="M342.9 80.7C339.7 70.8 330.5 64 320 64C309.5 64 300.3 70.8 297.1 80.7L246.5 240L88 240C77.7 240 68.6 246.5 65.3 256.2C62 265.9 65.2 276.6 73.3 282.9L204.1 384.7L153.1 544.7C149.9 554.7 153.6 565.7 162.2 571.7C170.8 577.7 182.4 577.4 190.7 571L320 470.4L449.3 570.9C457.6 577.4 469.1 577.7 477.8 571.6C486.5 565.5 490.1 554.7 486.9 544.6L435.9 384.7L566.7 282.9C574.8 276.6 578 265.9 574.7 256.2C571.4 246.5 562.3 240 552 240L393.5 240L342.8 80.7z"/></svg>';
+        let sb = null, wkUser = null, wkBuilds = [], wkMine = new Map(), wkRenderer = null, wkObserver = null, wkBound = false;
+
+        function wkInit() {
+            if (sb) return true;
+            if (!window.supabase || SUPABASE_URL.indexOf('YOUR_') === 0) return false;
+            sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+            sb.auth.onAuthStateChange((ev, session) => {
+                wkUser = session ? session.user : null; wkRenderUser();
+                if (workshopOpen) wkLoad();
+            });
+            return true;
+        }
+        function wkAfterRedirect() {
+            try {
+                const stash = sessionStorage.getItem('wkStash');
+                if (stash) {   // the page reloaded for GitHub login: put the build back
+                    sessionStorage.removeItem('wkStash');
+                    document.getElementById('start-menu').style.display = 'none'; startMenuOpen = false;
+                    restoreState(JSON.parse(stash));
+                }
+                if (sessionStorage.getItem('wkReopen')) { sessionStorage.removeItem('wkReopen'); openWorkshop(); }
+            } catch (e) { console.warn(e); }
+        }
+        function wkUserName() { const m = (wkUser && wkUser.user_metadata) || {}; return m.user_name || m.preferred_username || m.name || (wkUser && wkUser.email) || 'user'; }
+        function wkRenderUser() {
+            const el = document.getElementById('wk-user'); if (!el) return;
+            el.innerHTML = wkUser
+                ? `<i class="fa-brands fa-github mr-1"></i>${lgEsc(wkUserName())} <button onclick="wkLogout()" class="ml-1">Log out</button>`
+                : `<button onclick="wkLogin()"><i class="fa-brands fa-github mr-1"></i>Log in with GitHub</button>`;
+        }
+        async function wkLogin() {
+            if (!wkInit()) return;
+            try { if (!startMenuOpen) sessionStorage.setItem('wkStash', JSON.stringify(captureState())); sessionStorage.setItem('wkReopen', '1'); } catch (e) {}
+            const { error } = await sb.auth.signInWithOAuth({ provider: 'github', options: { redirectTo: location.origin + location.pathname } });
+            if (error) showToast('Login failed: ' + error.message);
+        }
+        async function wkLogout() { if (sb) await sb.auth.signOut(); }
+        async function openWorkshop() {
+            workshopOpen = true; document.getElementById('workshop').classList.add('open');
+            const list = document.getElementById('wk-list');
+            if (!wkBound) {
+                wkBound = true;
+                list.addEventListener('mouseover', e => { const t = e.target.closest('.wk-hit span'); if (t) t.closest('.wk-starrow').querySelector('.wk-fg').style.width = (t.dataset.v * 20) + '%'; });
+                list.addEventListener('mouseout', e => { const r = e.target.closest('.wk-starrow'); if (r && !r.contains(e.relatedTarget)) r.querySelector('.wk-fg').style.width = r.dataset.w + '%'; });
+                list.addEventListener('click', e => { const t = e.target.closest('.wk-hit span'); if (t) wkRate(+t.closest('.wk-card').dataset.i, +t.dataset.v); });
+            }
+            if (!wkInit()) { wkRenderUser(); list.innerHTML = '<div class="wk-msg">The workshop is not set up yet.<br>Open index.html and fill in SUPABASE_URL and SUPABASE_ANON_KEY.</div>'; return; }
+            const { data } = await sb.auth.getSession(); wkUser = data.session ? data.session.user : null;
+            wkRenderUser(); wkLoad();
+        }
+        function closeWorkshop() { workshopOpen = false; document.getElementById('workshop').classList.remove('open'); wkCancelPublish(); }
+        async function wkLoad() {
+            const list = document.getElementById('wk-list'); list.innerHTML = '<div class="wk-msg">Loading...</div>';
+            const { data, error } = await sb.from('workshop_builds_v').select('*').order('created_at', { ascending: false }).limit(30);
+            if (error) { list.innerHTML = `<div class="wk-msg">Could not load builds: ${lgEsc(error.message)}</div>`; return; }
+            wkBuilds = data || []; wkMine = new Map();
+            if (wkUser) { const r = await sb.from('build_ratings').select('build_id,stars').eq('user_id', wkUser.id); (r.data || []).forEach(x => wkMine.set(x.build_id, x.stars)); }
+            wkRenderList();
+        }
+        function wkStars(b) {
+            const avg = Number(b.avg_rating) || 0, w = avg / 5 * 100, mine = wkMine.get(b.id);
+            const five = STAR_SVG.repeat(5);
+            return `<div class="wk-starrow" data-w="${w}" title="${wkUser ? 'Click to rate' : 'Log in with GitHub to rate'}"><div class="wk-bg">${five}</div><div class="wk-fg" style="width:${w}%">${five}</div><div class="wk-hit">${[1, 2, 3, 4, 5].map(v => `<span data-v="${v}"></span>`).join('')}</div></div>`
+                + `<span>${avg ? avg.toFixed(1) : '-'} (${b.rating_count || 0})${mine ? ' &middot; you: ' + mine : ''}</span>`;
+        }
+        function wkRenderList() {
+            const list = document.getElementById('wk-list');
+            if (!wkBuilds.length) { list.innerHTML = '<div class="wk-msg">No builds yet. Be the first to publish one!</div>'; return; }
+            list.innerHTML = wkBuilds.map((b, i) => `<div class="wk-card" data-i="${i}">
+                <div class="wk-left"><div class="wk-preview"><canvas class="wk-canvas"></canvas></div>
+                    <div class="wk-name">${lgEsc(b.name)}</div><div class="wk-by">by ${lgEsc(b.owner_name || 'unknown')}</div><div class="wk-rate">${wkStars(b)}</div></div>
+                <div class="wk-right"><div class="wk-dh">Description</div><div class="wk-desc">${lgEsc(b.description || '')}</div>
+                    ${wkUser && b.owner_id === wkUser.id ? `<button class="wk-del" onclick="wkDeleteBuild(${i})"><i class="fa-solid fa-trash-can mr-1"></i>Delete</button>` : ''}</div>
+            </div>`).join('');
+            if (wkObserver) wkObserver.disconnect();
+            wkObserver = new IntersectionObserver(es => es.forEach(en => { if (en.isIntersecting && !en.target._pv) wkShowPreview(en.target); }), { root: document.getElementById('wk-scroll'), rootMargin: '200px' });
+            list.querySelectorAll('.wk-card').forEach(c => wkObserver.observe(c));
+        }
+        async function wkRate(i, v) {
+            const b = wkBuilds[i]; if (!b) return;
+            if (!wkUser) { showToast('Log in with GitHub to rate builds'); return; }
+            if (b.owner_id === wkUser.id) { showToast("You can't rate your own build"); return; }
+            const { error } = await sb.from('build_ratings').upsert({ build_id: b.id, user_id: wkUser.id, stars: v }, { onConflict: 'build_id,user_id' });
+            if (error) { showToast('Could not rate: ' + error.message); return; }
+            wkMine.set(b.id, v);
+            const r = await sb.from('workshop_builds_v').select('avg_rating,rating_count').eq('id', b.id).single();
+            if (r.data) Object.assign(b, r.data);
+            const card = document.querySelector(`.wk-card[data-i="${i}"] .wk-rate`); if (card) card.innerHTML = wkStars(b);
+        }
+        async function wkDeleteBuild(i) {
+            const b = wkBuilds[i]; if (!b || !confirm('Delete "' + b.name + '" from the workshop?')) return;
+            const { error } = await sb.from('builds').delete().eq('id', b.id);
+            if (error) showToast('Could not delete: ' + error.message); else { showToast('Build deleted'); wkLoad(); }
+        }
+        function wkPublish() {
+            if (!wkInit()) { showToast('Workshop is not set up yet (see SUPABASE_URL in index.html)'); return; }
+            if (!wkUser) { wkLogin(); return; }
+            if (simStarted) { showToast('Reset the simulation before publishing'); return; }
+            if (!parts.length) { showToast('Nothing to publish: the scene is empty'); return; }
+            document.getElementById('wk-publish').classList.add('open'); document.getElementById('wk-name').focus();
+        }
+        function wkCancelPublish() { document.getElementById('wk-publish').classList.remove('open'); }
+        async function wkSubmitPublish() {
+            const name = document.getElementById('wk-name').value.trim(), description = document.getElementById('wk-descr').value.trim();
+            if (!name) { showToast('Give your build a name'); return; }
+            const btn = document.getElementById('wk-submit'); btn.disabled = true;
+            const { error } = await sb.from('builds').insert({ name, description, owner_name: wkUserName(), data: JSON.parse(JSON.stringify(captureState())) });
+            btn.disabled = false;
+            if (error) { showToast('Could not publish: ' + error.message); return; }
+            document.getElementById('wk-name').value = ''; document.getElementById('wk-descr').value = '';
+            wkCancelPublish(); showToast('Build published!'); wkLoad();
+        }
+
+        // ---- read-only 3D preview: orbit only, no simulation ----
+        function wkMakePreview(snap) {
+            const scene = new THREE.Scene(); scene.background = new THREE.Color(0x1d2219);
+            scene.add(new THREE.AmbientLight(0xffffff, 0.75));
+            const dl = new THREE.DirectionalLight(0xffffff, 0.8); dl.position.set(6, -9, 14); scene.add(dl);
+            const grid = new THREE.GridHelper(80, 80, 0x697a5d, 0x3b4433); grid.rotation.x = Math.PI / 2; scene.add(grid);
+            const pm = new Map(), box = new THREE.Box3(), V = o => new THREE.Vector3(o.x, o.y, o.z), Q = o => new THREE.Quaternion(o.x, o.y, o.z, o.w);
+            (snap.parts || []).forEach(p => pm.set(p.id, p));
+            (snap.parts || []).forEach(p => {
+                const m = p.isSensor
+                    ? new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(p.dimensions.x, p.dimensions.y, p.dimensions.z)), new THREE.LineBasicMaterial({ color: 0xef4444 }))
+                    : new THREE.Mesh(makeGeometry(p.type, p.dimensions), new THREE.MeshStandardMaterial({ color: p.color, roughness: 0.7, metalness: 0.05, transparent: !!p.noCollide, opacity: p.noCollide ? 0.55 : 1 }));
+                m.position.copy(V(p.position)); m.quaternion.copy(Q(p.quaternion)); scene.add(m); box.expandByObject(m);
+            });
+            (snap.joints || []).forEach(j => {
+                const A = pm.get(j.a && j.a.__ref), B = pm.get(j.b && j.b.__ref); if (!A || !B) return;
+                const qa = Q(A.quaternion), pa = V(A.position).add(V(j.la || { x: 0, y: 0, z: 0 }).applyQuaternion(qa));
+                const col = 0xf3e5ab, mat = new THREE.LineBasicMaterial({ color: col, depthTest: false });
+                if (j.type === 'bearing') {
+                    const ax = new THREE.Vector3(j.axis === 'x' ? 1 : 0, j.axis === 'y' ? 1 : 0, j.axis === 'z' ? 1 : 0).applyQuaternion(qa);
+                    const c = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 1.4, 12), new THREE.MeshBasicMaterial({ color: col, depthTest: false }));
+                    c.position.copy(pa); c.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), ax); c.renderOrder = 10; scene.add(c);
+                } else if (j.type === 'thruster') {
+                    const sg = (j.dirKey || '+z')[0] === '-' ? -1 : 1, a = (j.dirKey || '+z')[1];
+                    const ex = new THREE.Vector3(a === 'x' ? sg : 0, a === 'y' ? sg : 0, a === 'z' ? sg : 0).applyQuaternion(qa).negate();
+                    const pa1 = new THREE.Vector3().crossVectors(ex, Math.abs(ex.z) > 0.9 ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 0, 1)).normalize(), pb1 = new THREE.Vector3().crossVectors(ex, pa1), pts = [];
+                    for (let i = 0; i < 14; i++) { const an = i / 14 * Math.PI * 2; pts.push(pa, pa.clone().addScaledVector(ex, 1.4).addScaledVector(pa1, Math.cos(an) * 0.49).addScaledVector(pb1, Math.sin(an) * 0.49)); }
+                    const l = new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(pts), mat); l.renderOrder = 10; scene.add(l);
+                } else if (j.type === 'rope' || j.type === 'spring') {
+                    const pb = V(B.position).add(V(j.lb || { x: 0, y: 0, z: 0 }).applyQuaternion(Q(B.quaternion)));
+                    const l = new THREE.Line(new THREE.BufferGeometry().setFromPoints([pa, pb]), mat); l.renderOrder = 10; scene.add(l);
+                }
+            });
+            if (box.isEmpty()) box.set(new THREE.Vector3(-2, -2, 0), new THREE.Vector3(2, 2, 2));
+            const size = box.getSize(new THREE.Vector3());
+            return { scene, camera: new THREE.PerspectiveCamera(50, 4 / 3, 0.1, 3000), target: box.getCenter(new THREE.Vector3()), radius: Math.max(6, size.length() * 1.15), theta: Math.PI / 4, phi: Math.PI / 3 };
+        }
+        function wkDraw(pv) {
+            if (!wkRenderer) wkRenderer = new THREE.WebGLRenderer({ antialias: true });
+            const w = pv.canvas.width, h = pv.canvas.height; wkRenderer.setPixelRatio(1); wkRenderer.setSize(w, h, false);
+            const c = pv.camera; c.up.set(0, 0, 1); c.aspect = w / h; c.updateProjectionMatrix();
+            c.position.set(pv.target.x + pv.radius * Math.sin(pv.phi) * Math.cos(pv.theta), pv.target.y + pv.radius * Math.sin(pv.phi) * Math.sin(pv.theta), pv.target.z + pv.radius * Math.cos(pv.phi));
+            c.lookAt(pv.target); wkRenderer.render(pv.scene, c); pv.ctx.drawImage(wkRenderer.domElement, 0, 0, w, h);
+        }
+        function wkShowPreview(card) {
+            const b = wkBuilds[+card.dataset.i], canvas = card.querySelector('.wk-canvas'); if (!b || !b.data) return;
+            const pv = wkMakePreview(b.data), r = canvas.parentElement.getBoundingClientRect(), dpr = Math.min(window.devicePixelRatio || 1, 2);
+            canvas.width = Math.max(64, Math.round(r.width * dpr)); canvas.height = Math.max(48, Math.round(r.height * dpr));
+            pv.canvas = canvas; pv.ctx = canvas.getContext('2d'); card._pv = pv;
+            let drag = null;
+            canvas.addEventListener('pointerdown', e => { drag = { x: e.clientX, y: e.clientY }; canvas.setPointerCapture(e.pointerId); });
+            canvas.addEventListener('pointermove', e => {
+                if (!drag) return;
+                pv.theta -= (e.clientX - drag.x) * 0.01; pv.phi = Math.max(0.05, Math.min(Math.PI - 0.05, pv.phi - (e.clientY - drag.y) * 0.01));
+                drag = { x: e.clientX, y: e.clientY }; wkDraw(pv);
+            });
+            canvas.addEventListener('pointerup', () => { drag = null; });
+            wkDraw(pv);
         }
 
         function startScene(kind) {
@@ -1386,6 +1992,43 @@ text-xl{line-height:1.75rem}.text-xl{font-size:1.25rem}.text-xs{font-size:.75rem
             updateCameraPosition();
         }
 
+        function enhanceSelects(root) {
+            if (!root) return;
+            root.querySelectorAll('select:not([data-ss])').forEach(sel => {
+                sel.dataset.ss = '1';
+                const wrap = document.createElement('div'); wrap.className = 'ss-wrap'; wrap.style.width = sel.style.width || '100%';
+                const btn = document.createElement('button'); btn.type = 'button'; btn.className = 'btn-raw ss-btn';
+                sel.parentNode.insertBefore(wrap, sel); wrap.appendChild(sel); wrap.appendChild(btn);
+                const sync = () => { const o = sel.options[sel.selectedIndex]; btn.textContent = o ? o.textContent : ''; };
+                sync();
+                btn.addEventListener('mousedown', e => e.stopPropagation());
+                btn.addEventListener('click', e => {
+                    e.stopPropagation();
+                    let pop = document.getElementById('ss-pop');
+                    if (!pop) { pop = document.createElement('div'); pop.id = 'ss-pop'; pop.className = 'steam-panel hidden'; document.body.appendChild(pop); }
+                    if (!pop.classList.contains('hidden') && pop._for === sel) { pop.classList.add('hidden'); return; }
+                    pop._for = sel; pop.innerHTML = '';
+                    const addOpt = (o, indent) => {
+                        if (sel.dataset.noempty && o.value === '') return;
+                        const d = document.createElement('div'); d.className = 'ss-opt menu-item' + (o.selected ? ' sel' : ''); d.textContent = o.textContent;
+                        if (indent) d.style.paddingLeft = '22px';
+                        d.addEventListener('click', () => { sel.value = o.value; pop.classList.add('hidden'); sel.dispatchEvent(new Event('change', { bubbles: true })); sync(); });
+                        pop.appendChild(d);
+                    };
+                    Array.from(sel.children).forEach(ch => {
+                        if (ch.tagName === 'OPTGROUP') {
+                            const g = document.createElement('div'); g.className = 'ss-grp'; g.textContent = ch.label; pop.appendChild(g);
+                            Array.from(ch.children).forEach(o => addOpt(o, true));
+                        } else addOpt(ch, false);
+                    });
+                    const r = btn.getBoundingClientRect();
+                    pop.classList.remove('hidden'); pop.style.minWidth = r.width + 'px'; pop.style.left = Math.min(r.left, window.innerWidth - pop.offsetWidth - 4) + 'px';
+                    const h = pop.offsetHeight; pop.style.top = (r.bottom + h > window.innerHeight ? Math.max(4, r.top - h) : r.bottom) + 'px';
+                });
+            });
+        }
+        document.addEventListener('mousedown', e => { const p = document.getElementById('ss-pop'); if (p && !p.contains(e.target)) p.classList.add('hidden'); });
+        window.addEventListener('wheel', e => { const p = document.getElementById('ss-pop'); if (p && !p.contains(e.target)) p.classList.add('hidden'); }, { passive: true });
         function enhanceSpinners(root) {
             root.querySelectorAll('input[type="number"]').forEach(inp => {
                 if (inp.parentElement && inp.parentElement.classList.contains('steam-spin')) return;
@@ -1423,7 +2066,7 @@ text-xl{line-height:1.75rem}.text-xl{font-size:1.25rem}.text-xs{font-size:.75rem
             // Held hotkeys only move the TARGET angle; the servo always drives toward it.
             let rate = 0;
             for (const hk of (j.sKeys || [])) if (hkActive(hk)) rate += hk.rate;
-            const keyed = (j.sKeys || []).some(k => k.key);
+            const keyed = (j.sKeys || []).some(k => k.key || k.lb);
             j.tgt = keyed ? clampTarget(j, (j.tgt || 0) + rate * SUB_DT) : clampTarget(j, j.a0 || 0);   // no hotkeys: sit at the set angle
             const err = j.tgt * Math.PI / 180 - j.angUnw;
             c.setMotorMaxForce((j.lock || !keyed) && Math.abs(err) < 0.02 ? 1e5 : j.torque);
@@ -1449,14 +2092,14 @@ text-xl{line-height:1.75rem}.text-xl{font-size:1.25rem}.text-xs{font-size:.75rem
                 if (j.mKey1) j.mKeys.push({ key: j.mKey1, rpm: d(j.mSpeed1, 0) });
                 if (j.mKey2) j.mKeys.push({ key: j.mKey2, rpm: d(j.mSpeed2, 0) });
             }
-            j.sKeys = j.sKeys.map(k => ({ id: k.id || newHotkeyId(), key: k.key || '', rate: Number(k.rate) || 0, toggle: !!k.toggle }));
-            j.mKeys = j.mKeys.map(k => ({ id: k.id || newHotkeyId(), key: k.key || '', rpm: Number(k.rpm) || 0, toggle: !!k.toggle }));
+            j.sKeys = j.sKeys.map(k => ({ id: k.id || newHotkeyId(), key: (k.key && k.key !== ' ') ? k.key : '', rate: Number(k.rate) || 0, toggle: !!k.toggle }));
+            j.mKeys = j.mKeys.map(k => ({ id: k.id || newHotkeyId(), key: (k.key && k.key !== ' ') ? k.key : '', rpm: Number(k.rpm) || 0, toggle: !!k.toggle }));
             ['k1', 'k2', 'a1', 'a2', 'mKey1', 'mKey2', 'mSpeed1', 'mSpeed2', 'held', 'mActive'].forEach(k => delete j[k]);
         }
         function addHotkey(list) {
             const j = selectedJoint; if (!j) return;
             pushUndo();
-            const hk = list === 'sKeys' ? { id: newHotkeyId(), key: '', rate: 90 } : list === 'tKeys' ? { id: newHotkeyId(), key: '', thrust: 100 } : { id: newHotkeyId(), key: '', rpm: 60 };
+            const hk = list === 'sKeys' ? { id: newHotkeyId(), key: '', rate: 90 } : list === 'tKeys' ? { id: newHotkeyId(), key: '', thrust: 100 } : list === 'rKeys' ? { id: newHotkeyId(), key: '', rate: 1 } : { id: newHotkeyId(), key: '', rpm: 60 };
             (j[list] = j[list] || []).push(hk);
             keyCaptureField = hk.id; updateInspector();
         }
@@ -1531,7 +2174,10 @@ text-xl{line-height:1.75rem}.text-xl{font-size:1.25rem}.text-xs{font-size:.75rem
                     + `<div class="${lbl}">Thrust hotkeys (hold = set thrust)</div>` + hkList('tKeys', 'Thrust (force)', 'thrust', 10)
                     + `<div class="text-[10px] steam-text-dim">While simulating, holding a hotkey sets the thrust to its value (last pressed wins). The plume grows with thrust and the force pushes the part opposite to it; off-center thrusters also spin the part.</div>`;
             } else if (j.type === 'rope') {
-                body = num('Rope length', 'len', 0.5) + `<button onclick="autoLengthNow()" class="w-full py-1">Auto length (from current distance)</button>`;
+                body = num('Rope length', 'len', 0.5) + `<button onclick="autoLengthNow()" class="w-full py-1">Auto length (from current distance)</button>`
+                    + num('Min length (hotkeys)', 'minLen', 0.5) + num('Max length (hotkeys)', 'maxLen', 0.5)
+                    + `<div class="${lbl}">Rope hotkeys (hold = change length)</div>` + hkList('rKeys', 'Length rate (units/s)', 'rate', 0.5)
+                    + `<div class="text-[10px] steam-text-dim">While simulating, holding a hotkey lengthens (positive) or shortens (negative) the rope at that rate, within the min/max length.</div>`;
             } else {
                 body = `<button onclick="autoLengthNow()" class="w-full py-1">Auto length (from current distance)</button>` + num('Desired length', 'rest', 0.5) + num('Max length', 'max', 0.5) + num('Pull force (stiffness)', 'k', 10) + num('Damping', 'damp', 1)
                     + `<div class="flex items-center justify-between"><span>Lock weight to axis</span><input type="checkbox" ${j.lockAxis ? 'checked' : ''} onchange="setJBool('lockAxis', this.checked)" class="h-4 w-4" /></div>`;
@@ -2088,10 +2734,25 @@ text-xl{line-height:1.75rem}.text-xl{font-size:1.25rem}.text-xs{font-size:.75rem
                 const key = e.key.toLowerCase();
 
                 if (startMenuOpen) return;
+                if (workshopOpen) { if (e.key === 'Escape') closeWorkshop(); return; }
+                if (logicKeyCapture) {
+                    e.preventDefault();
+                    const ln = logic.nodes.find(n => n.id === logicKeyCapture);
+                    if (ln) ln.key = (e.key === 'Escape' || e.key === ' ') ? '' : key;
+                    logicKeyCapture = null; renderLogic(true); return;
+                }
+                if (logicSel.size && (e.key === 'Delete' || e.key === 'Backspace' || key === 'x')) {
+                    const h = document.elementFromPoint(currentMouseScreenPos.x, currentMouseScreenPos.y);
+                    if (h && h.closest('#logic-panel')) {
+                        e.preventDefault();
+                        logic.nodes = logic.nodes.filter(n => !logicSel.has(n.id)); logic.wires = logic.wires.filter(w => !logicSel.has(w.from) && !logicSel.has(w.to));
+                        logicSel.clear(); logicChanged(); return;
+                    }
+                }
                 if (keyCaptureField && selectedJoint) {
                     e.preventDefault();
-                    const hk = [...(selectedJoint.sKeys || []), ...(selectedJoint.mKeys || []), ...(selectedJoint.tKeys || [])].find(k => k.id === keyCaptureField);
-                    if (hk) hk.key = e.key === 'Escape' ? '' : key;
+                    const hk = [...(selectedJoint.sKeys || []), ...(selectedJoint.mKeys || []), ...(selectedJoint.tKeys || []), ...(selectedJoint.rKeys || [])].find(k => k.id === keyCaptureField);
+                    if (hk) hk.key = (e.key === 'Escape' || e.key === ' ') ? '' : key;
                     keyCaptureField = null; updateInspector();
                     return;
                 }
@@ -2109,11 +2770,15 @@ text-xl{line-height:1.75rem}.text-xl{font-size:1.25rem}.text-xs{font-size:.75rem
                 if (isSimulating) {
                     let hit = false;
                     joints.forEach(j => {
-                        if (j.type === 'thruster') { if ((j.tKeys || []).some(k => k.key && k.key === key)) hit = true; return; }
+                        if (j.type === 'thruster' || j.type === 'rope') { if ((jointKeyList(j) || []).some(k => k.key && k.key === key)) hit = true; return; }
                         if (j.type !== 'bearing') return;
                         const list = j.mode === 'servo' ? j.sKeys : j.mode === 'motor' ? j.mKeys : null;
                         if (list && list.some(k => k.key && k.key === key)) hit = true;
                     });
+                    if (logic.nodes.some(n => n.type === 'in_key' && n.key === key)) {
+                        hit = true;
+                        if (!e.repeat) logic.nodes.forEach(n => { if (n.type === 'in_key' && n.key === key && n.toggle) { const st = logicState.get(n.id) || { on: false, prev: false }; st.on = !st.on; logicState.set(n.id, st); } });
+                    }
                     if (hit && !e.repeat) joints.forEach(j => (jointKeyList(j) || []).forEach(hk => { if (hk.key === key) { hk.t = performance.now(); if (hk.toggle) hk.on = !hk.on; } }));
                     if (hit && !pressedKeys.includes(key)) pressedKeys.push(key);
                     if (hit) { e.preventDefault(); return; }
@@ -2187,6 +2852,7 @@ text-xl{line-height:1.75rem}.text-xl{font-size:1.25rem}.text-xs{font-size:.75rem
                 if (!addMenu.contains(e.target)) {
                     addMenu.classList.add('hidden');
                 }
+                if (!document.getElementById('logic-menu').contains(e.target)) document.getElementById('logic-menu').classList.add('hidden');
             });
         }
 
@@ -2206,6 +2872,7 @@ text-xl{line-height:1.75rem}.text-xl{font-size:1.25rem}.text-xs{font-size:.75rem
                 partObj.boxHelper.geometry.dispose(); partObj.boxHelper.geometry = new THREE.EdgesGeometry(new THREE.BoxGeometry(newDimensions.x, newDimensions.y, newDimensions.z));
             }
 
+            if (partObj.sensorLines) { partObj.sensorLines.geometry.dispose(); partObj.sensorLines.geometry = new THREE.EdgesGeometry(new THREE.BoxGeometry(newDimensions.x, newDimensions.y, newDimensions.z)); }
             partObj.body.shapes.length = 0; partObj.body.shapeOffsets.length = 0; partObj.body.shapeOrientations.length = 0;
             partObj.body.addShape(makeShape(partObj.type, newDimensions));
             partObj.body.computeAABB();
@@ -2244,7 +2911,18 @@ text-xl{line-height:1.75rem}.text-xl{font-size:1.25rem}.text-xs{font-size:.75rem
             showToast(`Rotated 90° on ${axis.toUpperCase()} Axis`);
         }
 
+        let logicMenuPos = { x: 20, y: 20 };
+        function openLogicMenuAtMouse() {
+            const m = document.getElementById('logic-menu'), r = document.getElementById('logic-canvas').getBoundingClientRect();
+            logicMenuPos = { x: currentMouseScreenPos.x - r.left - 10 - logicView.x, y: currentMouseScreenPos.y - r.top - 10 - logicView.y };
+            m.style.left = Math.min(currentMouseScreenPos.x, window.innerWidth - 200) + 'px';
+            m.style.top = Math.max(0, Math.min(currentMouseScreenPos.y, window.innerHeight - 380)) + 'px';
+            m.classList.remove('hidden');
+        }
+        function addLogicFromMenu(type) { document.getElementById('logic-menu').classList.add('hidden'); addLogicNode(type, logicMenuPos.x, logicMenuPos.y); }
         function openAddMenuAtMouse() {
+            const hov = document.elementFromPoint(currentMouseScreenPos.x, currentMouseScreenPos.y);
+            if (hov && hov.closest('#logic-panel')) { openLogicMenuAtMouse(); return; }
             const menu = document.getElementById('add-menu');
             menu.style.left = `${Math.min(currentMouseScreenPos.x, window.innerWidth - 220)}px`;
             menu.style.top = `${Math.min(currentMouseScreenPos.y, window.innerHeight - 300)}px`;
@@ -2258,7 +2936,7 @@ text-xl{line-height:1.75rem}.text-xl{font-size:1.25rem}.text-xs{font-size:.75rem
             const map = new Map();
             const copies = list.map(p => {
                 const c = createPrimitive(p.type, p.mesh.position.clone(), p.dimensions.clone(), p.color, p.isAnchored);
-                c.friction = p.friction; c.density = p.density; applyPartPhysics(c);
+                c.friction = p.friction; c.density = p.density; c.noCollide = p.noCollide; applyPartPhysics(c); if (p.isSensor) makeSensor(c);
                 c.mesh.quaternion.copy(p.mesh.quaternion);
                 c.body.quaternion.set(p.mesh.quaternion.x, p.mesh.quaternion.y, p.mesh.quaternion.z, p.mesh.quaternion.w);
                 c.initialQuat.copy(p.mesh.quaternion);
@@ -2331,6 +3009,7 @@ text-xl{line-height:1.75rem}.text-xl{font-size:1.25rem}.text-xs{font-size:.75rem
                     joints.forEach(j => buildJoint(j));
                     clearWelds();
                     detectGlues();
+                    prepareSensors();
                     glues.forEach(g => weld(g.a, g.b));
                     clampBearingMasses();
                     if (glues.length) showToast(`${glues.length} touching pair(s) attached for the simulation`);
@@ -2357,6 +3036,8 @@ text-xl{line-height:1.75rem}.text-xl{font-size:1.25rem}.text-xs{font-size:.75rem
             isSimulating = false;
             simStarted = false;
             clearWelds(); glues = [];
+            resetSensors();
+            joints.forEach(j => { if (j.type === 'rope' && j.len0 !== undefined) { j.len = j.len0; if (j.constraint) j.constraint.L = j.len; } });   // ropes return to their original length
             document.getElementById('sim-play-icon').className = "fa-solid fa-play";
             document.getElementById('sim-play-text').innerText = "Simulate [Space]";
             document.getElementById('sim-play-btn').className = "flex items-center space-x-1.5";
@@ -2400,6 +3081,7 @@ text-xl{line-height:1.75rem}.text-xl{font-size:1.25rem}.text-xs{font-size:.75rem
         }
 
         function updateOutliner() {
+            renderLogic();
             const container = document.getElementById('outliner-list');
             if (parts.length === 0 && joints.length === 0) {
                 container.innerHTML = `<div class="steam-text-dim italic text-center py-4">No objects in scene</div>`;
@@ -2451,6 +3133,7 @@ text-xl{line-height:1.75rem}.text-xl{font-size:1.25rem}.text-xs{font-size:.75rem
         }
 
         function updateInspector() {
+            renderLogic();
             const container = document.getElementById('inspector-content');
             if (selectedJoint) { container.innerHTML = jointInspectorHTML(selectedJoint); return; }
 
@@ -2490,7 +3173,7 @@ text-xl{line-height:1.75rem}.text-xl{font-size:1.25rem}.text-xs{font-size:.75rem
 
                     <div class="grid grid-cols-2 gap-1">
                         <div><label class="text-[10px] steam-text-gold font-bold uppercase tracking-wider block mb-1">Friction</label>
-                            <input type="number" step="0.05" min="0" value="${(p.friction !== undefined ? p.friction : 0.3)}" onchange="setPartProp('friction', this.value)" class="w-full blender-input" /></div>
+                            <input type="number" step="0.05" min="0" value="${(p.friction !== undefined ? p.friction : 2)}" onchange="setPartProp('friction', this.value)" class="w-full blender-input" /></div>
                         <div><label class="text-[10px] steam-text-gold font-bold uppercase tracking-wider block mb-1">Weight / cubic unit</label>
                             <input type="number" step="0.1" min="0.01" value="${(p.density !== undefined ? p.density : 1)}" onchange="setPartProp('density', this.value)" class="w-full blender-input" /></div>
                     </div>
@@ -2511,10 +3194,14 @@ text-xl{line-height:1.75rem}.text-xl{font-size:1.25rem}.text-xs{font-size:.75rem
                         </div>
                     </div>
 
-                    <div class="flex items-center justify-between pt-2 border-t" style="border-color: var(--steam-dark);">
+                    ${p.isSensor ? `<div class="pt-2 border-t text-[10px] steam-text-dim" style="border-color: var(--steam-dark);">Sensor: stays where it is on its own. If it touches a part (or is joined to one) when the simulation starts it rides along with that part and ignores it. It only reacts to parts that have collision.</div>` : `<div class="flex items-center justify-between pt-2 border-t" style="border-color: var(--steam-dark);">
                         <span class="text-xs font-medium text-slate-200">Anchor In Physics World</span>
                         <input type="checkbox" ${p.isAnchored ? 'checked' : ''} onchange="toggleAnchor(this.checked)" class="h-4 w-4" />
                     </div>
+                    <div class="flex items-center justify-between pt-2">
+                        <span class="text-xs font-medium text-slate-200">No collision</span>
+                        <input type="checkbox" ${p.noCollide ? 'checked' : ''} onchange="setPartFlag('noCollide', this.checked)" class="h-4 w-4" />
+                    </div>`}
 
                     ${glues.some(g => g.a === p || g.b === p) ? `<button onclick="detachSelected()" class="w-full mt-2 py-1.5 font-semibold text-xs"><i class="fa-solid fa-link-slash mr-1"></i>Detach from attached parts</button>` : ''}
                     <button onclick="deleteSelectedObject()" class="w-full mt-2 py-1.5 font-semibold text-xs flex items-center justify-center space-x-1">
@@ -2581,6 +3268,7 @@ text-xl{line-height:1.75rem}.text-xl{font-size:1.25rem}.text-xs{font-size:.75rem
         function toggleAnchor(checked) {
             if (!selectedObject) return;
             selectionList().forEach(p => {
+                if (p.isSensor) return;
                 p.isAnchored = checked;
                 p.body.mass = checked ? 0 : p.dimensions.x * p.dimensions.y * p.dimensions.z * (p.density !== undefined ? p.density : 1);
                 p.body.updateMassProperties();
@@ -2618,7 +3306,8 @@ text-xl{line-height:1.75rem}.text-xl{font-size:1.25rem}.text-xs{font-size:.75rem
                     p.mesh.position.copy(p.body.position);
                     p.mesh.quaternion.copy(p.body.quaternion);
                 });
-            }
+                evalLogic();
+            } else if (logicActive && !simStarted) resetLogicOutputs();
 
             updateFollow();
             updateJointVisuals();
