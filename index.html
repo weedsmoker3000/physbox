@@ -1850,6 +1850,7 @@ text-xl{line-height:1.75rem}.text-xl{font-size:1.25rem}.text-xs{font-size:.75rem
                 <div class="wk-left"><div class="wk-preview"><canvas class="wk-canvas"></canvas></div>
                     <div class="wk-name">${lgEsc(b.name)}</div><div class="wk-by">by ${lgEsc(b.owner_name || 'unknown')}</div><div class="wk-rate">${wkStars(b)}</div></div>
                 <div class="wk-right"><div class="wk-dh">Description</div><div class="wk-desc">${lgEsc(b.description || '')}</div>
+                    <button class="wk-del" style="margin-right:auto;" onclick="wkLoadBuild(${i})"><i class="fa-solid fa-download mr-1"></i>Load</button>
                     ${wkUser && b.owner_id === wkUser.id ? `<button class="wk-del" onclick="wkDeleteBuild(${i})"><i class="fa-solid fa-trash-can mr-1"></i>Delete</button>` : ''}</div>
             </div>`).join('');
             if (wkObserver) wkObserver.disconnect();
@@ -1871,6 +1872,22 @@ text-xl{line-height:1.75rem}.text-xl{font-size:1.25rem}.text-xs{font-size:.75rem
             const b = wkBuilds[i]; if (!b || !confirm('Delete "' + b.name + '" from the workshop?')) return;
             const { error } = await sb.from('builds').delete().eq('id', b.id);
             if (error) showToast('Could not delete: ' + error.message); else { showToast('Build deleted'); wkLoad(); }
+        }
+        function wkLoadBuild(i) {
+            const b = wkBuilds[i];
+            if (!b || !b.data) return;
+            try {
+                if (typeof startMenuOpen !== 'undefined' && startMenuOpen) {
+                    document.getElementById('start-menu').style.display = 'none';
+                    startMenuOpen = false;
+                }
+                restoreState(b.data);
+                closeWorkshop();
+                showToast('Build "' + b.name + '" loaded!');
+            } catch (err) {
+                showToast('Could not load build: ' + err.message);
+                console.error(err);
+            }
         }
         function wkPublish() {
             if (!wkInit()) { showToast('Workshop is not set up yet (see SUPABASE_URL in index.html)'); return; }
