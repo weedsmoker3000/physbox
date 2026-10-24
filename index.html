@@ -16,9 +16,6 @@ text-xl{line-height:1.75rem}.text-xl{font-size:1.25rem}.text-xs{font-size:.75rem
     <!-- Supabase (workshop) -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
     <style>
-    /* ==========================================
-       STRICT CLASSIC STEAM UI THEME OVERRIDES
-       ========================================== */
     :root {
         --steam-bg: #4c5844;
         --steam-panel: #3a4335;
@@ -28,12 +25,12 @@ text-xl{line-height:1.75rem}.text-xl{font-size:1.25rem}.text-xs{font-size:.75rem
         --steam-input-bg: #2e362a;
         --steam-text: #d8ded0;
         --steam-text-dim: #98a590;
-        --steam-yellow: #f3e5ab; /* Classic Steam Gold/Yellow Accent */
+        --steam-yellow: #f3e5ab; 
         --steam-active: #58674f;
     }
 
     *, *:before, *:after {
-        border-radius: 0 !important; /* Force ALL elements to sharp square corners */
+        border-radius: 0 !important; 
         box-shadow: none !important;
         backdrop-filter: none !important;
         -webkit-backdrop-filter: none !important;
@@ -57,8 +54,6 @@ text-xl{line-height:1.75rem}.text-xl{font-size:1.25rem}.text-xs{font-size:.75rem
         left: 0;
         z-index: 0;
     }
-
-    /* Opaque Solid Panels */
     header, aside, #add-menu, #transform-hud, #grab-badge, .steam-panel, .toast-notification {
         background-color: var(--steam-panel) !important;
         border: 1px solid var(--steam-dark) !important;
@@ -81,7 +76,7 @@ text-xl{line-height:1.75rem}.text-xl{font-size:1.25rem}.text-xs{font-size:.75rem
         color: var(--steam-text-dim) !important;
     }
 
-    /* Retro Steam Blocky Scrollbars */
+    
     ::-webkit-scrollbar {
         width: 13px;
         height: 13px;
@@ -191,7 +186,7 @@ text-xl{line-height:1.75rem}.text-xl{font-size:1.25rem}.text-xs{font-size:.75rem
         box-sizing: border-box;
     }
 
-    /* ---- Steam checkboxes ---- */
+    
     input[type="checkbox"] {
         -webkit-appearance: none; appearance: none;
         width: 14px !important; height: 14px !important; min-width: 14px; flex: none;
@@ -206,7 +201,7 @@ text-xl{line-height:1.75rem}.text-xl{font-size:1.25rem}.text-xs{font-size:.75rem
         background-repeat: no-repeat; background-position: center; background-size: 10px 10px;
     }
 
-    /* ---- Steam number spinners ---- */
+    
     input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
     input[type="number"]::-webkit-inner-spin-button, input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; display: none; }
     .steam-spin { display: flex; align-items: stretch; width: 100%; }
@@ -272,7 +267,7 @@ text-xl{line-height:1.75rem}.text-xl{font-size:1.25rem}.text-xs{font-size:.75rem
     .lg-hit:hover + .lg-wire { stroke: #fff; stroke-width: 3; }
     .lg-wire.on { stroke: #22c55e; } .lg-wire.tmp { stroke: var(--steam-yellow); stroke-dasharray: 4 3; pointer-events: none; }
 
-    /* ---- Steam dropdowns (replace native select popups) ---- */
+    /* ---- Steam dropdowns  */
     .ss-wrap { position: relative; display: block; }
     .ss-wrap > select { display: none !important; }
     button.ss-btn { display: flex; align-items: center; justify-content: space-between; width: 100%; text-align: left; padding: 2px 4px; font-size: 11px; cursor: pointer; white-space: nowrap; overflow: hidden;
@@ -1285,7 +1280,7 @@ text-xl{line-height:1.75rem}.text-xl{font-size:1.25rem}.text-xs{font-size:.75rem
             applyJointParams(j);
         }
         function autoLengthNow() { const j = selectedJoint; if (!j) return; pushUndo(); autoLength(j); updateInspector(); showToast('Length set from the current distance between the parts.'); }
-
+        //god dammnit i hate typing, my fingers hurt and my eyes are reder than rgb(255, 000, 000,)
         function makeShape(type, d) {
             const hx = d.x / 2, hy = d.y / 2, hz = d.z / 2, V = (x, y, z) => new CANNON.Vec3(x, y, z), eq = (a, b) => Math.abs(a - b) < 1e-3;
             if (type === 'sphere') {
@@ -1793,7 +1788,7 @@ text-xl{line-height:1.75rem}.text-xl{font-size:1.25rem}.text-xs{font-size:.75rem
         function wkAfterRedirect() {
             try {
                 const stash = sessionStorage.getItem('wkStash');
-                if (stash) {   // the page reloaded for GitHub login: put the build back
+                if (stash) {   
                     sessionStorage.removeItem('wkStash');
                     document.getElementById('start-menu').style.display = 'none'; startMenuOpen = false;
                     restoreState(JSON.parse(stash));
@@ -1907,8 +1902,7 @@ text-xl{line-height:1.75rem}.text-xl{font-size:1.25rem}.text-xs{font-size:.75rem
             document.getElementById('wk-name').value = ''; document.getElementById('wk-descr').value = '';
             wkCancelPublish(); showToast('Build published!'); wkLoad();
         }
-
-        // ---- read-only 3D preview: orbit only, no simulation ----
+        
         function wkMakePreview(snap) {
             const scene = new THREE.Scene(); scene.background = new THREE.Color(0x1d2219);
             scene.add(new THREE.AmbientLight(0xffffff, 0.75));
@@ -2079,11 +2073,10 @@ text-xl{line-height:1.75rem}.text-xl{font-size:1.25rem}.text-xs{font-size:.75rem
             j.angUnw += dl; j.lastRaw = raw;
             if (j.mode !== 'servo') return;
             const c = j.constraint, max = Math.abs(j.rpm) * Math.PI / 30;
-            // Held hotkeys only move the TARGET angle; the servo always drives toward it.
             let rate = 0;
             for (const hk of (j.sKeys || [])) if (hkActive(hk)) rate += hk.rate;
             const keyed = (j.sKeys || []).some(k => k.key || k.lb);
-            j.tgt = keyed ? clampTarget(j, (j.tgt || 0) + rate * SUB_DT) : clampTarget(j, j.a0 || 0);   // no hotkeys: sit at the set angle
+            j.tgt = keyed ? clampTarget(j, (j.tgt || 0) + rate * SUB_DT) : clampTarget(j, j.a0 || 0);   
             const err = j.tgt * Math.PI / 180 - j.angUnw;
             c.setMotorMaxForce((j.lock || !keyed) && Math.abs(err) < 0.02 ? 1e5 : j.torque);
             c.setMotorSpeed(-Math.max(-max, Math.min(max, 6 * err)));
@@ -2103,7 +2096,7 @@ text-xl{line-height:1.75rem}.text-xl{font-size:1.25rem}.text-xs{font-size:.75rem
                 if (j.k2) j.sKeys.push({ key: j.k2, rate: a2 > a1 ? 90 : -90 });
             }
             j.minAng = d(j.minAng, -90); j.maxAng = d(j.maxAng, 90);
-            if (!Array.isArray(j.mKeys)) {   // migrate old 2-key motor
+            if (!Array.isArray(j.mKeys)) {  
                 j.mKeys = [];
                 if (j.mKey1) j.mKeys.push({ key: j.mKey1, rpm: d(j.mSpeed1, 0) });
                 if (j.mKey2) j.mKeys.push({ key: j.mKey2, rpm: d(j.mSpeed2, 0) });
@@ -2446,7 +2439,7 @@ text-xl{line-height:1.75rem}.text-xl{font-size:1.25rem}.text-xs{font-size:.75rem
             return { part, kind: 'axis', axis, localNormal: n, poly, tris: [poly[0], poly[1], poly[2], poly[0], poly[2], poly[3]],
                      worldNormal: n.clone().applyQuaternion(part.mesh.quaternion).normalize(), facePoint: wp.clone() };
         }
-
+        //why you reading the code, get oout
         function updateFaceHighlightOverlay(e) {
             if (!faceHighlightMesh || interactionMode !== 'face' || isSimulating || isTransforming) {
                 if (faceHighlightMesh) faceHighlightMesh.visible = false;
@@ -2871,7 +2864,7 @@ text-xl{line-height:1.75rem}.text-xl{font-size:1.25rem}.text-xs{font-size:.75rem
                 if (!document.getElementById('logic-menu').contains(e.target)) document.getElementById('logic-menu').classList.add('hidden');
             });
         }
-
+        // no i mean it, get out, now
         function updateObjectDimensions(partObj, newDimensions) {
             pushUndo();
             partObj.dimensions.copy(newDimensions);
@@ -3261,7 +3254,7 @@ text-xl{line-height:1.75rem}.text-xl{font-size:1.25rem}.text-xs{font-size:.75rem
             const q = followPart.mesh.quaternion;
             if (followLast) {
                 cameraTarget.add(pos.clone().sub(followLast));
-                if (followRotate && followLastQ) {   // turn the camera by the part's yaw change
+                if (followRotate && followLastQ) {   // waht a repeptitive load of bs, who could read this?
                     const v = new THREE.Vector3(1, 0, 0).applyQuaternion(q.clone().multiply(followLastQ.clone().invert()));
                     if (Math.hypot(v.x, v.y) > 1e-6) cameraTheta += Math.atan2(v.y, v.x);
                 }
@@ -3335,7 +3328,7 @@ text-xl{line-height:1.75rem}.text-xl{font-size:1.25rem}.text-xs{font-size:.75rem
             }
 
             renderer.render(scene, camera);
-        }
+        }//project do that do physac jdwwiwdjojwnla; crazy??? i was crazy once. they locked me in a room. a rubber room. with rats. rats make me crazy.
 
         window.addEventListener('resize', () => {
             camera.aspect = window.innerWidth / window.innerHeight;
